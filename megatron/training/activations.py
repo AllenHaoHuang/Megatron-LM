@@ -46,7 +46,6 @@ class XIELU(MegatronModule):
         layer_idx = 0
         if 'layers.' in prefix:
             layer_idx = int(prefix.split('layers.')[1].split('.')[0])
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
         pp_rank = parallel_state.get_pipeline_model_parallel_rank()
         dp_rank = parallel_state.get_data_parallel_rank()
         return {
@@ -57,7 +56,7 @@ class XIELU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, pp_rank, dp_rank),
+                replica_id=(pp_rank, dp_rank),
                 dtype=self.alpha_p.dtype,
             ),
             f'{prefix}alpha_n': ShardedTensor(
@@ -67,7 +66,7 @@ class XIELU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, pp_rank, dp_rank),
+                replica_id=(pp_rank, dp_rank),
                 dtype=self.alpha_n.dtype,
             )
         }
@@ -91,7 +90,6 @@ class XIPReLU(MegatronModule):
         layer_idx = 0
         if 'layers.' in prefix:
             layer_idx = int(prefix.split('layers.')[1].split('.')[0])
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
         pp_rank = parallel_state.get_pipeline_model_parallel_rank()
         dp_rank = parallel_state.get_data_parallel_rank()
         return {
@@ -102,7 +100,7 @@ class XIPReLU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, pp_rank, dp_rank),
+                replica_id=(pp_rank, dp_rank),
                 dtype=self.alpha_p.dtype,
             ),
             f'{prefix}alpha_n': ShardedTensor(
@@ -112,7 +110,7 @@ class XIPReLU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, pp_rank, dp_rank),
+                replica_id=(pp_rank, dp_rank),
                 dtype=self.alpha_n.dtype,
             )
         }
@@ -138,7 +136,6 @@ class XIPReLUP(MegatronModule):
         layer_idx = 0
         if 'layers.' in prefix:
             layer_idx = int(prefix.split('layers.')[1].split('.')[0])
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
         pp_rank = parallel_state.get_pipeline_model_parallel_rank()
         dp_rank = parallel_state.get_data_parallel_rank()
         return {
@@ -149,7 +146,7 @@ class XIPReLUP(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, pp_rank, dp_rank),
+                replica_id=(pp_rank, dp_rank),
                 dtype=self.alpha_p.dtype,
             ),
             f'{prefix}alpha_n': ShardedTensor(
@@ -159,7 +156,7 @@ class XIPReLUP(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, pp_rank, dp_rank),
+                replica_id=(pp_rank, dp_rank),
                 dtype=self.alpha_n.dtype,
             ),
              f'{prefix}power': ShardedTensor(
@@ -169,7 +166,7 @@ class XIPReLUP(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, pp_rank, dp_rank),
+                replica_id=(pp_rank, dp_rank),
                 dtype=self.power.dtype,
             )
         }
