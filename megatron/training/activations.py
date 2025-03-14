@@ -45,16 +45,15 @@ class XIELU(MegatronModule):
         num_layers = self.config.num_layers
         layer_idx = 0
         if 'layers.' in prefix:
-            # Match 'layers.X.' where X is the layer number
-            import re
-            match = re.search(r'layers\.(\d+)\.', prefix)
-            if match:
-                layer_idx = int(match.group(1))
-            else:
-                raise ValueError(f"Could not extract layer index from prefix: {prefix}")
+            layer_idx = int(prefix.split('layers.')[1].split('.')[0])
         dp_rank = parallel_state.get_data_parallel_rank()
         tp_rank = parallel_state.get_tensor_model_parallel_rank()
         pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+
+        # Only TP rank 0 saves the actual parameters
+        if tp_rank != 0:
+            return {}
+        
         return {
             f'{prefix}alpha_p': ShardedTensor(
                 key=f'{prefix}alpha_p',
@@ -63,7 +62,7 @@ class XIELU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, dp_rank, pp_rank),
+                replica_id=(0, dp_rank, pp_rank),
                 dtype=self.alpha_p.dtype,
             ),
             f'{prefix}alpha_n': ShardedTensor(
@@ -73,7 +72,7 @@ class XIELU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(tp_rank, dp_rank, pp_rank),
+                replica_id=(0, dp_rank, pp_rank),
                 dtype=self.alpha_n.dtype,
             )
         }
