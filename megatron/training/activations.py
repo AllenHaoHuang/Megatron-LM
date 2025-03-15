@@ -46,13 +46,10 @@ class XIELU(MegatronModule):
         layer_idx = 0
         if 'layers.' in prefix:
             layer_idx = int(prefix.split('layers.')[1].split('.')[0])
+            
         dp_rank = parallel_state.get_data_parallel_rank()
         tp_rank = parallel_state.get_tensor_model_parallel_rank()
         pp_rank = parallel_state.get_pipeline_model_parallel_rank()
-
-        # Only TP rank 0 saves the actual parameters
-        if tp_rank != 0:
-            return {}
         
         return {
             f'{prefix}alpha_p': ShardedTensor(
@@ -64,6 +61,7 @@ class XIELU(MegatronModule):
                 axis_fragmentations=(num_layers,),
                 replica_id=(0, dp_rank, pp_rank),
                 dtype=self.alpha_p.dtype,
+                allow_shape_mismatch=False,
             ),
             f'{prefix}alpha_n': ShardedTensor(
                 key=f'{prefix}alpha_n',
@@ -74,6 +72,7 @@ class XIELU(MegatronModule):
                 axis_fragmentations=(num_layers,),
                 replica_id=(0, dp_rank, pp_rank),
                 dtype=self.alpha_n.dtype,
+                allow_shape_mismatch=False,
             )
         }
 
