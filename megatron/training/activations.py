@@ -59,7 +59,7 @@ class XIELU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(0, dp_rank, pp_rank),
+                replica_id=(tp_rank, dp_rank, pp_rank),
                 dtype=self.alpha_p.dtype,
                 allow_shape_mismatch=False,
             ),
@@ -70,7 +70,7 @@ class XIELU(MegatronModule):
                 global_offset=(layer_idx,),
                 local_shape=(1,),
                 axis_fragmentations=(num_layers,),
-                replica_id=(0, dp_rank, pp_rank),
+                replica_id=(tp_rank, dp_rank, pp_rank),
                 dtype=self.alpha_n.dtype,
                 allow_shape_mismatch=False,
             )
