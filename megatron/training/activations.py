@@ -61,7 +61,7 @@ class XIELU(MegatronModule):
                 axis_fragmentations=(num_layers,),
                 replica_id=(tp_rank, dp_rank, pp_rank),
                 dtype=self.alpha_p.dtype,
-                allow_shape_mismatch=False,
+                allow_shape_mismatch=True,
             ),
             f'{prefix}alpha_n': ShardedTensor(
                 key=f'{prefix}alpha_n',
@@ -72,7 +72,7 @@ class XIELU(MegatronModule):
                 axis_fragmentations=(num_layers,),
                 replica_id=(tp_rank, dp_rank, pp_rank),
                 dtype=self.alpha_n.dtype,
-                allow_shape_mismatch=False,
+                allow_shape_mismatch=True,
             )
         }
 
