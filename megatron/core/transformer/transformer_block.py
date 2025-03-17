@@ -10,7 +10,7 @@ from torch import Tensor
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
-from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
+from megatron.core.fusions.fused_layer_norm import FusedLayerNorm, DynamicTanh
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
