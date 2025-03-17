@@ -16,6 +16,7 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_viewless_tensor
+from megatron.core.transformer.torch_norm import DynamicTanh
 
 
 def get_transformer_layer_offset(config: TransformerConfig):
@@ -287,12 +288,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         self.self_attn_bda = build_module(submodules.self_attn_bda)
 
         # [Module 4: Post SelfAttention] Optional Layernorm after self-attn
-        self.pre_cross_attn_layernorm = build_module(
-            submodules.pre_cross_attn_layernorm,
-            config=self.config,
-            hidden_size=self.config.hidden_size,
-            eps=self.config.layernorm_epsilon,
-        )
+        self.pre_cross_attn_layernorm = DynamicTanh(input_scaling_init_value=1.0)
 
         # [Module 5: CrossAttention]
         self.cross_attention = build_module(
@@ -306,12 +302,8 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         self.cross_attn_bda = build_module(submodules.cross_attn_bda, config=self.config)
 
         # [Module 7: Pre MLP] Optional Layernorm before MLP
-        self.pre_mlp_layernorm = build_module(
-            submodules.pre_mlp_layernorm,
-            config=self.config,
-            hidden_size=self.config.hidden_size,
-            eps=self.config.layernorm_epsilon,
-        )
+        self.pre_mlp_layernorm = DynamicTanh(input_scaling_init_value=0.5)
+        
         # [Module 8: MLP block]
         self.mlp = build_module(submodules.mlp, config=self.config)
         if hasattr(self.mlp, 'set_layer_number'):
