@@ -7,12 +7,8 @@ from megatron.core.utils import is_torch_min_version
 
 
 class DynamicTanh(nn.Module):
-    def __init__(self, normalized_shape, eps=1e-6, input_scaling_init_value=0.5):
+    def __init__(self, input_scaling_init_value=0.5):
         super().__init__()
-        # Not used but allows compatibility with LN and RMSNorm
-        self.normalized_shape = normalized_shape
-        self.eps = eps
-        
         self.input_scaling_init_value = input_scaling_init_value
         self.input_scaling = nn.Parameter(torch.ones(1) * input_scaling_init_value)
 
