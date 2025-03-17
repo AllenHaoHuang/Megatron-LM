@@ -18,7 +18,6 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import BaseTransformerLayer, TransformerLayer
 from megatron.core.transformer.utils import sharded_state_dict_default
 from megatron.core.utils import is_te_min_version, make_viewless_tensor
-from megatron.core.transformer.torch_norm import DynamicTanh
 
 try:
     from megatron.core.extensions.transformer_engine import (
