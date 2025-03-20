@@ -723,13 +723,10 @@ class CrossAttention(Attention):
 
         # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
         new_tensor_shape = mixed_kv.size()[:-1] + (
-            self.num_attention_heads_per_partition,
-            2 * self.hidden_size_per_attention_head,
+            2 * self.num_attention_heads_per_partition,
+            self.hidden_size_per_attention_head,
         )
-        mixed_kv = mixed_kv.view(*new_tensor_shape)
-
-        # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
-        (key, value) = tensor_parallel.split_tensor_along_last_dim(mixed_kv, 2)
+        shared_kv = mixed_kv.view(*new_tensor_shape)
 
         # Attention head [sq, b, h] --> [sq, b, hp]
         query, _ = self.linear_q(hidden_states)
@@ -741,4 +738,4 @@ class CrossAttention(Attention):
         )
         query = query.view(*new_tensor_shape)
 
-        return query, key, value
+        return query, shared_kv, shared_kv
