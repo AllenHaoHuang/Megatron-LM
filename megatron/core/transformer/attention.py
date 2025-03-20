@@ -738,4 +738,4 @@ class CrossAttention(Attention):
         )
         query = query.view(*new_tensor_shape)
 
-        return query, shared_kv, shared_kv
+        return query, shared_kv, torch.roll(shared_kv, shifts=1, dims=-2)
