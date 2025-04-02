@@ -9,6 +9,18 @@ from megatron.core.transformer.module import MegatronModule
 
 # Trying to apply @jit_fuser / @torch.compile to XIELU class causes issues with sharded_state_dict naming
 @jit_fuser
+def compiled_xieplu(x, alpha_n, alpha_p2, alpha_p3, alpha_p4, alpha_p5, alpha_p6, beta=0.5, eps=-1e-6):
+    x_2 = x * x          # x^2
+    x_3 = x_2 * x        # x^3 
+    x_4 = x_3 * x        # x^4
+    x_5 = x_4 * x        # x^5
+    x_6 = x_5 * x        # x^6
+    return torch.where(x > 0,
+                      alpha_p6 * x_6 + alpha_p5 * x_5 + alpha_p4 * x_4 + alpha_p3 * x_3 + alpha_p2 * x_2 + beta * x,
+                      alpha_n * torch.expm1(torch.min(x, eps)) - alpha_n * x + beta * x)
+
+
+@jit_fuser
 def compiled_xielu(x, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
     return torch.where(x > 0,
                       alpha_p * x * x + beta * x,
@@ -28,6 +40,28 @@ def compiled_xiprelup(x, alpha_p, alpha_n, power, beta=0.5, eps=1e-6):
     return torch.where(x > 0,
                       alpha_p * x_power + beta * x,
                       alpha_n * x_power + beta * x)
+
+
+class XIEPLU(MegatronModule):
+    def __init__(self, config=None, alpha_p2_init=1/2, alpha_p3_init=1/6, alpha_p4_init=1/24, alpha_p5_init=1/120, alpha_p6_init=1/720, alpha_n_init=0.8, beta=0.5):
+        super().__init__(config)
+        self.config = config
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p2_init, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p3_init, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
+        self.alpha_p4 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p4_init, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
+        self.alpha_p5 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p5_init, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
+        self.alpha_p6 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p6_init, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
+        self.beta = beta
+
+    def forward(self, x):
+        alpha_n = F.softplus(self.alpha_n)
+        alpha_p2 = F.softplus(self.alpha_p2)
+        alpha_p3 = F.softplus(self.alpha_p3)
+        alpha_p4 = F.softplus(self.alpha_p4)
+        alpha_p5 = F.softplus(self.alpha_p5)
+        alpha_p6 = F.softplus(self.alpha_p6)
+        return compiled_xieplu(x, alpha_n, alpha_p2, alpha_p3, alpha_p4, alpha_p5, alpha_p6, self.beta)
 
 
 class XIELU(MegatronModule):
