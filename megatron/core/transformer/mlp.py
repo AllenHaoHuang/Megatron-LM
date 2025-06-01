@@ -60,15 +60,21 @@ class MLPSubmodules:
 
 
 class DeepEmbed(nn.Module):
-    def __init__(self, vocab_size, hidden_size):
+    def __init__(self, vocab_size, hidden_size, config):
         super().__init__()
-        self.embed = nn.Embedding(vocab_size, hidden_size)
-        # Initialize to ones (identity transform initially)
-        nn.init.constant_(self.embed.weight, 1.0)
-        
+        self.embed = VocabParallelEmbedding(vocab_size, hidden_size, config)
+        # Project to sharded hidden_size (no gather)
+        self.proj = ColumnParallelLinear(
+            hidden_size, hidden_size, 
+            config=config, 
+            gather_output=False,
+            init_method=lambda x: nn.init.constant_(x, 1.0),
+        )
+
     def forward(self, x, token_ids):
-        # token_ids should be the input token indices
-        return x * self.embed(token_ids)
+        embeddings = self.embed(token_ids)  # [batch, seq_len, 12288] (vocab-sharded)
+        embeddings_sharded, _ = self.proj(embeddings)  # [batch, seq_len, 3072] (hidden-sharded)
+        return x * embeddings_sharded
 
 
 class MLP(MegatronModule):
@@ -144,7 +150,7 @@ class MLP(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
-        self.deep_embed = DeepEmbed(self.config.vocab_size, self.input_size)
+        self.deep_embed = DeepEmbed(self.config.vocab_size, self.input_size, config)
 
     def forward(self, hidden_states, token_ids=None):
         """Perform the forward pass through the MLP block."""
