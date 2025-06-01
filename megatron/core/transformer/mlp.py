@@ -114,7 +114,7 @@ class MLP(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
-    def forward(self, hidden_states, token_ids):
+    def forward(self, hidden_states, token_ids=None):
         """Perform the forward pass through the MLP block."""
         # [s, b, 4 * h/p]
         intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
@@ -147,6 +147,8 @@ class MLP(MegatronModule):
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
+        # debug code
+        assert token_ids is not None
         # [s, b, h]
         output, output_bias = self.linear_fc2(self.deep_embed(intermediate_parallel, token_ids))
 
