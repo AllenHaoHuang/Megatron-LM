@@ -133,8 +133,8 @@ class MLP(MegatronModule):
         )
 
         self.embed = VocabParallelEmbedding(
-            num_embeddings=vocab_size,
-            embedding_dim=hidden_size, 
+            num_embeddings=self.config.vocab_size,
+            embedding_dim=self.config.hidden_size, 
             config=config,
             init_method=lambda x: nn.init.constant_(x, 1.0),
         )
