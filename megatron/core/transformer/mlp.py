@@ -37,27 +37,21 @@ class DeepEmbed(nn.Module):
         super().__init__()
         self.config = config
         
-        # Use Megatron's parallel embedding (auto-shards vocab across TP ranks)
+        # Use Megatron's parallel embedding (shards vocab across TP ranks)
         self.embed = VocabParallelEmbedding(
             num_embeddings=vocab_size,
             embedding_dim=hidden_size,
             config=config,
-            init_method=lambda x: nn.init.constant_(x, 1.0))  # Your custom init
+            init_method=lambda x: nn.init.constant_(x, 1.0))
 
     def forward(self, x, token_ids):
         """Forward pass with TP-aware tensor operations"""
-        # 1. Shard input 'x' to match TP partitioning
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        # Get embeddings (automatically handles TP)
+        # Output shape: [batch_size, seq_len, hidden_size]
+        embeddings = self.embed(token_ids)
         
-        # Split along last dim (hidden_size) to match embedding's TP sharding
-        x_sharded = torch.chunk(x, tp_size, dim=-1)[tp_rank]
-        
-        # 2. Get embeddings (automatically handles TP)
-        embeddings = self.embed(token_ids)  # [..., hidden_size/tp_size]
-        
-        # 3. Multiply sharded tensors
-        output = x_sharded * embeddings  # [..., hidden_size/tp_size]
+        # Multiply tensors - no need to shard since embeddings are already TP-aware
+        output = x * embeddings
         
         return output
 
