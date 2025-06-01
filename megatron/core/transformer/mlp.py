@@ -58,6 +58,9 @@ class MLPSubmodules:
 #         # Multiply with x (already sharded by ColumnParallelLinear)
 #         return x * embeddings_sharded
 
+import torch._inductor.config as config
+config.triton.max_block['X'] = 8192
+
 
 class MLP(MegatronModule):
     """
