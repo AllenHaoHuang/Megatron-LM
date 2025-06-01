@@ -32,7 +32,7 @@ class MLPSubmodules:
 class DeepEmbed(nn.Module):
     def __init__(self, vocab_size, hidden_size):
         super().__init__()
-        padded_vocab_size = ((self.config.vocab_size + 127) // 128) * 128
+        padded_vocab_size = ((vocab_size + 127) // 128) * 128
         self.embed = nn.Embedding(padded_vocab_size, hidden_size)
         # Initialize to ones (identity transform initially)
         nn.init.constant_(self.embed.weight, 1.0)
