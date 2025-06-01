@@ -42,7 +42,7 @@ class DeepEmbed(nn.Module):
             num_embeddings=vocab_size,
             embedding_dim=hidden_size,
             config=config,
-            init_method=lambda x: nn.init.constant_(x, 1.0)  # Your custom init
+            init_method=lambda x: nn.init.constant_(x, 1.0))  # Your custom init
 
     def forward(self, x, token_ids):
         """Forward pass with TP-aware tensor operations"""
