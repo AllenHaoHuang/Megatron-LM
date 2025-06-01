@@ -32,31 +32,43 @@ class MLPSubmodules:
     linear_fc2: Union[ModuleSpec, type] = None
 
 
-class DeepEmbed(nn.Module):
-    def __init__(self, vocab_size, hidden_size, config):
-        super().__init__()
-        self.config = config
-        self.hidden_size = hidden_size
+# class DeepEmbed(nn.Module):
+#     def __init__(self, vocab_size, hidden_size, config):
+#         super().__init__()
+#         self.config = config
+#         self.hidden_size = hidden_size
         
-        # Use Megatron's optimized VocabParallelEmbedding
-        self.embed = VocabParallelEmbedding(
-            num_embeddings=vocab_size,
-            embedding_dim=hidden_size,  # Full hidden_size (12288)
-            config=config,
-            init_method=lambda x: nn.init.constant_(x, 1.0),
-        )
+#         # Use Megatron's optimized VocabParallelEmbedding
+#         self.embed = VocabParallelEmbedding(
+#             num_embeddings=vocab_size,
+#             embedding_dim=hidden_size,  # Full hidden_size (12288)
+#             config=config,
+#             init_method=lambda x: nn.init.constant_(x, 1.0),
+#         )
 
+#     def forward(self, x, token_ids):
+#         # Get embeddings (sharded along vocab, but full hidden_size)
+#         embeddings = self.embed(token_ids)  # [batch, seq_len, hidden_size=12288]
+        
+#         # Manually split hidden_size to match TP sharding
+#         tp_rank = parallel_state.get_tensor_model_parallel_rank()
+#         tp_size = parallel_state.get_tensor_model_parallel_world_size()
+#         embeddings_sharded = embeddings.chunk(tp_size, dim=-1)[tp_rank]  # [batch, seq_len, 3072]
+        
+#         # Multiply with x (already sharded by ColumnParallelLinear)
+#         return x * embeddings_sharded
+
+
+class DeepEmbed(nn.Module):
+    def __init__(self, vocab_size, hidden_size):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, hidden_size)
+        # Initialize to ones (identity transform initially)
+        nn.init.constant_(self.embed.weight, 1.0)
+        
     def forward(self, x, token_ids):
-        # Get embeddings (sharded along vocab, but full hidden_size)
-        embeddings = self.embed(token_ids)  # [batch, seq_len, hidden_size=12288]
-        
-        # Manually split hidden_size to match TP sharding
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        embeddings_sharded = embeddings.chunk(tp_size, dim=-1)[tp_rank]  # [batch, seq_len, 3072]
-        
-        # Multiply with x (already sharded by ColumnParallelLinear)
-        return x * embeddings_sharded
+        # token_ids should be the input token indices
+        return x * self.embed(token_ids)
 
 
 class MLP(MegatronModule):
@@ -132,7 +144,7 @@ class MLP(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
-        self.deep_embed = DeepEmbed(self.config.vocab_size, self.input_size, config)
+        self.deep_embed = DeepEmbed(self.config.vocab_size, self.input_size)
 
     def forward(self, hidden_states, token_ids=None):
         """Perform the forward pass through the MLP block."""
