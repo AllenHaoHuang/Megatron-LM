@@ -62,19 +62,15 @@ class MLPSubmodules:
 class DeepEmbed(nn.Module):
     def __init__(self, vocab_size, hidden_size, config):
         super().__init__()
-        self.embed = VocabParallelEmbedding(vocab_size, hidden_size, config=config)
-        # Project to sharded hidden_size (no gather)
-        self.proj = ColumnParallelLinear(
-            hidden_size, hidden_size, 
-            config=config, 
-            gather_output=False,
+        self.embed = VocabParallelEmbedding(
+            num_embeddings=vocab_size,
+            embedding_dim=hidden_size, 
+            config=config,
             init_method=lambda x: nn.init.constant_(x, 1.0),
         )
 
     def forward(self, x, token_ids):
-        embeddings = self.embed(token_ids)  # [batch, seq_len, 12288] (vocab-sharded)
-        embeddings_sharded, _ = self.proj(embeddings)  # [batch, seq_len, 3072] (hidden-sharded)
-        return x * embeddings_sharded
+        return x * self.embed(token_ids)
 
 
 class MLP(MegatronModule):
