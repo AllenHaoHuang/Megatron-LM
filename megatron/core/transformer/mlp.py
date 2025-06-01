@@ -62,7 +62,7 @@ class MLPSubmodules:
 class DeepEmbed(nn.Module):
     def __init__(self, vocab_size, hidden_size, config):
         super().__init__()
-        self.embed = VocabParallelEmbedding(vocab_size, hidden_size, config)
+        self.embed = VocabParallelEmbedding(vocab_size, hidden_size, config=config)
         # Project to sharded hidden_size (no gather)
         self.proj = ColumnParallelLinear(
             hidden_size, hidden_size, 
