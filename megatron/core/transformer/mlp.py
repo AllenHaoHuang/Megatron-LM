@@ -5,6 +5,7 @@ from typing import Optional, Union
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 from megatron.core.dist_checkpointing import ShardedTensor
@@ -26,6 +27,18 @@ from megatron.training.activations import XIELU, XIPReLU, XIPReLUP
 class MLPSubmodules:
     linear_fc1: Union[ModuleSpec, type] = None
     linear_fc2: Union[ModuleSpec, type] = None
+
+
+class DeepEmbed(nn.Module):
+    def __init__(self, vocab_size, hidden_size):
+        super().__init__()
+        self.embed = nn.Embedding(vocab_size, hidden_size)
+        # Initialize to ones (identity transform initially)
+        nn.init.constant_(self.embed.weight, 1.0)
+        
+    def forward(self, x, token_ids):
+        # token_ids should be the input token indices
+        return x * self.embed(token_ids)
 
 
 class MLP(MegatronModule):
@@ -86,6 +99,8 @@ class MLP(MegatronModule):
         else:
             self.activation_func = self.config.activation_func
 
+        self.deep_embed = DeepEmbed(self.config.padded_vocab_size, self.config.ffn_hidden_size)
+
         self.linear_fc2 = build_module(
             submodules.linear_fc2,
             self.config.ffn_hidden_size,
@@ -99,7 +114,7 @@ class MLP(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, token_ids):
         """Perform the forward pass through the MLP block."""
         # [s, b, 4 * h/p]
         intermediate_parallel, bias_parallel = self.linear_fc1(hidden_states)
@@ -133,7 +148,7 @@ class MLP(MegatronModule):
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
         # [s, b, h]
-        output, output_bias = self.linear_fc2(intermediate_parallel)
+        output, output_bias = self.linear_fc2(self.deep_embed(intermediate_parallel, token_ids))
 
         return output, output_bias
 
