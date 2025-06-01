@@ -32,7 +32,8 @@ class MLPSubmodules:
 class DeepEmbed(nn.Module):
     def __init__(self, vocab_size, hidden_size):
         super().__init__()
-        self.embed = nn.Embedding(vocab_size, hidden_size)
+        padded_vocab_size = ((self.config.vocab_size + 127) // 128) * 128
+        self.embed = nn.Embedding(padded_vocab_size, hidden_size)
         # Initialize to ones (identity transform initially)
         nn.init.constant_(self.embed.weight, 1.0)
         
@@ -99,7 +100,7 @@ class MLP(MegatronModule):
         else:
             self.activation_func = self.config.activation_func
 
-        self.deep_embed = DeepEmbed(self.config.padded_vocab_size, self.config.ffn_hidden_size)
+        self.deep_embed = DeepEmbed(self.config.vocab_size, self.config.ffn_hidden_size)
 
         self.linear_fc2 = build_module(
             submodules.linear_fc2,
