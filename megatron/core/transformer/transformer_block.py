@@ -307,6 +307,7 @@ class TransformerBlock(MegatronModule):
         rotary_pos_emb: Tensor,
         attention_bias: Tensor,
         packed_seq_params: PackedSeqParams,
+        token_ids: Tensor = None,
     ):
         """Forward method with activation checkpointing."""
 
@@ -325,6 +326,7 @@ class TransformerBlock(MegatronModule):
                         attention_bias=attention_bias,
                         inference_params=None,
                         packed_seq_params=packed_seq_params,
+                        token_ids=token_ids,
                     )
                 return hidden_states, context
 
@@ -445,6 +447,7 @@ class TransformerBlock(MegatronModule):
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
         sequence_len_offset: Tensor = None,
+        token_ids: Tensor = None,
     ):
         """
         Perform the forward pass through the transformer block.
@@ -540,6 +543,7 @@ class TransformerBlock(MegatronModule):
                     rotary_pos_emb=rotary_pos_emb,
                     attention_bias=attention_bias,
                     packed_seq_params=packed_seq_params,
+                    token_ids=token_ids,
                 )
             else:
                 for l_no, layer in enumerate(self.layers):
@@ -558,6 +562,7 @@ class TransformerBlock(MegatronModule):
                                 inference_params=inference_params,
                                 packed_seq_params=packed_seq_params,
                                 sequence_len_offset=sequence_len_offset,
+                                token_ids=token_ids,
                             )
                         else:
                             # CUDA graph replay for layer `l_no` and microbatch
