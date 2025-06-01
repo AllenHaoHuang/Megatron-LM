@@ -277,6 +277,7 @@ class GPTModel(LanguageModule):
             rotary_pos_sin=rotary_pos_sin,
             packed_seq_params=packed_seq_params,
             sequence_len_offset=sequence_len_offset,
+            token_ids=input_ids,
             **(extra_block_kwargs or {}),
         )
 
