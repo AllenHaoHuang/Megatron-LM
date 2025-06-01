@@ -117,7 +117,7 @@ class MLP(MegatronModule):
         else:
             self.activation_func = self.config.activation_func
 
-        self.deep_embed = DeepEmbed(self.config.vocab_size, self.config.ffn_hidden_size, config)
+        # self.deep_embed = DeepEmbed(self.config.vocab_size, self.config.ffn_hidden_size, config)
 
         self.linear_fc2 = build_module(
             submodules.linear_fc2,
@@ -131,6 +131,8 @@ class MLP(MegatronModule):
             is_expert=is_expert,
             tp_comm_buffer_name='fc2',
         )
+
+        self.deep_embed = DeepEmbed(self.config.vocab_size, self.input_size, config)
 
     def forward(self, hidden_states, token_ids=None):
         """Perform the forward pass through the MLP block."""
@@ -168,9 +170,9 @@ class MLP(MegatronModule):
         # debug code
         assert token_ids is not None
         # [s, b, h]
-        output, output_bias = self.linear_fc2(self.deep_embed(intermediate_parallel, token_ids))
+        output, output_bias = self.linear_fc2(intermediate_parallel)
 
-        return output, output_bias
+        return self.deep_embed(output, token_ids), output_bias
 
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
