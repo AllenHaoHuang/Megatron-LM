@@ -345,6 +345,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
     def forward(
         self,
         hidden_states,
+        token_ids,
         attention_mask=None,
         context=None,
         context_mask=None,
@@ -450,7 +451,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             pre_mlp_layernorm_output = hidden_states
 
         # MLP.
-        mlp_output, bias = self.mlp(pre_mlp_layernorm_output)
+        mlp_output, bias = self.mlp(pre_mlp_layernorm_output, token_ids)
         if self.config.post_layer_norm:
             mlp_output = self.pre_mlp_layernorm(mlp_output)
         mlp_output_with_bias = (mlp_output, bias)
