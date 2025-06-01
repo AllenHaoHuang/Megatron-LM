@@ -69,6 +69,7 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
         config = core_transformer_config_from_yaml(args, "language_model")
     else:
         config = core_transformer_config_from_args(args)
+    config.vocab_size = args.padded_vocab_size
 
     if args.use_legacy_models:
         model = megatron.legacy.model.GPTModel(
