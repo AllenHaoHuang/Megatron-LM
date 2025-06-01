@@ -22,6 +22,8 @@ from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.training.activations import XIELU, XIPReLU, XIPReLUP
 
+from megatron.core.tensor_parallel import VocabParallelEmbedding
+
 
 @dataclass
 class MLPSubmodules:
@@ -30,15 +32,16 @@ class MLPSubmodules:
 
 
 class DeepEmbed(nn.Module):
-    def __init__(self, vocab_size, hidden_size):
+    def __init__(self, vocab_size, hidden_size, config):
         super().__init__()
-        padded_vocab_size = ((vocab_size + 127) // 128) * 128
-        self.embed = nn.Embedding(padded_vocab_size, hidden_size)
-        # Initialize to ones (identity transform initially)
-        nn.init.constant_(self.embed.weight, 1.0)
-        
+        self.embed = VocabParallelEmbedding(
+            vocab_size, 
+            hidden_size, 
+            config=config,
+            init_method=lambda x: torch.nn.init.constant_(x, 1.0)
+        )
+    
     def forward(self, x, token_ids):
-        # token_ids should be the input token indices
         return x * self.embed(token_ids)
 
 
@@ -100,7 +103,7 @@ class MLP(MegatronModule):
         else:
             self.activation_func = self.config.activation_func
 
-        self.deep_embed = DeepEmbed(self.config.vocab_size, self.config.ffn_hidden_size)
+        self.deep_embed = DeepEmbed(self.config.vocab_size, self.config.ffn_hidden_size, config)
 
         self.linear_fc2 = build_module(
             submodules.linear_fc2,
