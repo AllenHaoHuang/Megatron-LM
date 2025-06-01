@@ -59,20 +59,6 @@ class MLPSubmodules:
 #         return x * embeddings_sharded
 
 
-class DeepEmbed(nn.Module):
-    def __init__(self, vocab_size, hidden_size, config):
-        super().__init__()
-        self.embed = VocabParallelEmbedding(
-            num_embeddings=vocab_size,
-            embedding_dim=hidden_size, 
-            config=config,
-            init_method=lambda x: nn.init.constant_(x, 1.0),
-        )
-
-    def forward(self, x, token_ids):
-        return x * self.embed(token_ids)
-
-
 class MLP(MegatronModule):
     """
     MLP will take the input with h hidden state, project it to 4*h
@@ -146,7 +132,12 @@ class MLP(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
-        self.deep_embed = DeepEmbed(self.config.vocab_size, self.input_size, config)
+        self.embed = VocabParallelEmbedding(
+            num_embeddings=vocab_size,
+            embedding_dim=hidden_size, 
+            config=config,
+            init_method=lambda x: nn.init.constant_(x, 1.0),
+        )
 
     def forward(self, hidden_states, token_ids=None):
         """Perform the forward pass through the MLP block."""
@@ -181,12 +172,10 @@ class MLP(MegatronModule):
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
-        # debug code
-        assert token_ids is not None
         # [s, b, h]
         output, output_bias = self.linear_fc2(intermediate_parallel)
 
-        return self.deep_embed(output, token_ids), output_bias
+        return output * self.embed(token_ids), output_bias
 
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
