@@ -328,6 +328,9 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         # self.bias_dropout_add_exec_handler = nullcontext if use_nvfuser else torch.enable_grad
         self.bias_dropout_add_exec_handler = torch.enable_grad
 
+        self.alpha_1 = nn.Parameter(torch.tensor(1.0, dtype=torch.bfloat16).unsqueeze(0))
+        self.alpha_2 = nn.Parameter(torch.tensor(1.0, dtype=torch.bfloat16).unsqueeze(0))
+
     @staticmethod
     def _get_layer_offset(config: TransformerConfig):
         """
