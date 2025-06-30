@@ -307,6 +307,7 @@ class TransformerBlock(MegatronModule):
         rotary_pos_emb: Tensor,
         attention_bias: Tensor,
         packed_seq_params: PackedSeqParams,
+        initial_states: Tensor,
     ):
         """Forward method with activation checkpointing."""
 
@@ -325,6 +326,7 @@ class TransformerBlock(MegatronModule):
                         attention_bias=attention_bias,
                         inference_params=None,
                         packed_seq_params=packed_seq_params,
+                        initial_states=initial_states,
                     )
                 return hidden_states, context
 
@@ -411,6 +413,7 @@ class TransformerBlock(MegatronModule):
         attention_bias: Tensor,
         inference_params: InferenceParams,
         packed_seq_params: PackedSeqParams,
+        initial_states: Tensor,
     ):
         """Get optional tensor arguments for CUDA graph."""
 
@@ -428,6 +431,7 @@ class TransformerBlock(MegatronModule):
                 optional_inputs['context'] = context
                 optional_inputs['context_mask'] = context_mask
                 optional_inputs['rotary_pos_emb'] = rotary_pos_emb
+                optional_inputs['initial_states'] = initial_states
         except ImportError:
             raise RuntimeError("CUDAGraph requires TransformerEngine, but not installed")
         return optional_inputs
@@ -529,6 +533,9 @@ class TransformerBlock(MegatronModule):
         else:
             fp8_context = nullcontext()
 
+        # Persist the original input states
+        initial_states = hidden_states
+
         with rng_context, fp8_context:
             # Forward pass.
             if self.config.recompute_granularity == 'full' and self.training:
@@ -540,6 +547,7 @@ class TransformerBlock(MegatronModule):
                     rotary_pos_emb=rotary_pos_emb,
                     attention_bias=attention_bias,
                     packed_seq_params=packed_seq_params,
+                    initial_states=initial_states,
                 )
             else:
                 for l_no, layer in enumerate(self.layers):
@@ -558,6 +566,7 @@ class TransformerBlock(MegatronModule):
                                 inference_params=inference_params,
                                 packed_seq_params=packed_seq_params,
                                 sequence_len_offset=sequence_len_offset,
+                                initial_states=initial_states,
                             )
                         else:
                             # CUDA graph replay for layer `l_no` and microbatch
@@ -578,6 +587,7 @@ class TransformerBlock(MegatronModule):
                                 attention_bias,
                                 inference_params,
                                 packed_seq_params,
+                                initial_states,
                             )
                             hidden_states = self.cuda_graphs[l_no][cg_index](
                                 hidden_states, **optional_inputs
