@@ -6,6 +6,7 @@ from typing import Dict, Optional, Union
 
 import torch
 import torch.distributed
+import torch.nn as nn
 
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
