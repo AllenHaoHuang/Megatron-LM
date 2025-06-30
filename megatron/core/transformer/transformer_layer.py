@@ -385,7 +385,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         """
 
         # Residual connection.
-        residual = hidden_states
+        residual = initial_states + self.alpha_1 * (hidden_states - initial_states)
 
         # Optional Input Layer norm
         input_layernorm_output = self.input_layernorm(hidden_states)
@@ -421,7 +421,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             )
 
         # Residual connection.
-        residual = hidden_states
+        residual = initial_states + self.alpha_2 * (hidden_states - initial_states)
 
         # Optional Layer norm after self-attention
         pre_cross_attn_layernorm_output = self.pre_cross_attn_layernorm(hidden_states)
