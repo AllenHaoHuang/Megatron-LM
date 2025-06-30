@@ -389,10 +389,10 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         residual = initial_states + self.alpha_1 * (hidden_states - initial_states)
 
         # Optional Input Layer norm
-        input_layernorm_output = self.input_layernorm(hidden_states)
+        input_layernorm_output = hidden_states
 
         if not self.config.post_layer_norm:
-            input_layernorm_output = self.input_layernorm(hidden_states)
+            input_layernorm_output = hidden_states
         else:
             input_layernorm_output = hidden_states
 
@@ -410,7 +410,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         )
 
         if self.config.post_layer_norm:
-            attention_output = self.input_layernorm(attention_output)
+            attention_output = attention_output
             assert bias is None
         attention_output_with_bias = (attention_output, bias)
 
@@ -425,7 +425,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         residual = initial_states + self.alpha_2 * (hidden_states - initial_states)
 
         # Optional Layer norm after self-attention
-        pre_cross_attn_layernorm_output = self.pre_cross_attn_layernorm(hidden_states)
+        pre_cross_attn_layernorm_output = hidden_states
 
         # Cross attention.
         attention_output_with_bias = self.cross_attention(
@@ -450,14 +450,14 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
 
         # Optional Layer norm post the cross-attention.
         if not self.config.post_layer_norm:
-            pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
+            pre_mlp_layernorm_output = hidden_states
         else:
             pre_mlp_layernorm_output = hidden_states
 
         # MLP.
         mlp_output, bias = self.mlp(pre_mlp_layernorm_output)
         if self.config.post_layer_norm:
-            mlp_output = self.pre_mlp_layernorm(mlp_output)
+            mlp_output = mlp_output
         mlp_output_with_bias = (mlp_output, bias)
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
