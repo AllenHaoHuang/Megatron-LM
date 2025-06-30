@@ -355,6 +355,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         inference_params=None,
         packed_seq_params=None,
         sequence_len_offset=None,
+        initial_states=None,
     ):
         """
         Perform a forward pass through the transformer layer.
