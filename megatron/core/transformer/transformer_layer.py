@@ -445,7 +445,7 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
             )
 
         # Residual connection.
-        residual = hidden_states
+        residual = initial_states + self.alpha_2 * (hidden_states - initial_states)
 
         # Optional Layer norm post the cross-attention.
         if not self.config.post_layer_norm:
