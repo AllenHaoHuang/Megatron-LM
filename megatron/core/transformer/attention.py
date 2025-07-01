@@ -129,6 +129,19 @@ class Attention(MegatronModule, ABC):
             tp_comm_buffer_name='proj',
         )
 
+        self.gating_linear = build_module(
+            submodules.linear_proj,  # Assuming this is the right builder
+            self.config.hidden_size,
+            self.config.hidden_size,
+            config=self.config,
+            init_method=self.config.output_layer_init_method,
+            bias=self.config.add_bias_linear,
+            input_is_parallel=False,  # Might need adjustment
+            skip_bias_add=False,      # Might need adjustment
+            is_expert=False,
+            tp_comm_buffer_name='gating_proj',
+        )
+
     def _checkpointed_attention_forward(
         self,
         query,
@@ -475,7 +488,7 @@ class Attention(MegatronModule, ABC):
         # Output. [sq, b, h]
         # =================
 
-        output, bias = self.linear_proj(core_attn_out)
+        output, bias = self.linear_proj(core_attn_out * torch.sigmoid(self.gating_linear(hidden_states)))
 
         return output, bias
 
