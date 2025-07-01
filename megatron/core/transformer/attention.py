@@ -130,14 +130,14 @@ class Attention(MegatronModule, ABC):
         )
 
         self.gating_linear = build_module(
-            submodules.linear_proj,  # Assuming this is the right builder
+            submodules.linear_proj,
             self.config.hidden_size,
             self.config.hidden_size,
             config=self.config,
             init_method=self.config.output_layer_init_method,
             bias=self.config.add_bias_linear,
-            input_is_parallel=False,  # Might need adjustment
-            skip_bias_add=False,      # Might need adjustment
+            input_is_parallel=False,
+            skip_bias_add=True,
             is_expert=False,
             tp_comm_buffer_name='gating_proj',
         )
