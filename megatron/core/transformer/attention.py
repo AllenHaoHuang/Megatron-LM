@@ -136,7 +136,7 @@ class Attention(MegatronModule, ABC):
             config=self.config,
             init_method=self.config.output_layer_init_method,
             bias=self.config.add_bias_linear,
-            input_is_parallel=False,
+            input_is_parallel=True,
             skip_bias_add=True,
             is_expert=False,
             tp_comm_buffer_name='gating_proj',
