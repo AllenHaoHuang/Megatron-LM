@@ -488,7 +488,7 @@ class Attention(MegatronModule, ABC):
         # Output. [sq, b, h]
         # =================
 
-        output, bias = self.linear_proj(core_attn_out * torch.sigmoid(self.gating_linear(hidden_states)))
+        output, bias = self.linear_proj(core_attn_out * torch.sigmoid(self.gating_linear(hidden_states)[0]))
 
         return output, bias
 
