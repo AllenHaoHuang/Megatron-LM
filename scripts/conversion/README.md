@@ -31,7 +31,7 @@ python tools/checkpoint/convert.py \
 	--hf-tokenizer HF_TOKENIZER_NAME  # Optional, set it to save the tokenizer config in `SAVE_DIR`.
 ```
 Set `--test-logits` if you want to make sure logits of the converted model match with the megatron implementation (only possible with TP1,PP1).
-In order to be able to convert Apertus models, we instantiate a custom HF `SwissAIForCausalLM`; make sure to install the latest version of the transformers fork before running the conversion:
+In order to be able to convert Apertus models, we instantiate a custom HF `ApertusForCausalLM`; make sure to install the latest version of the transformers fork before running the conversion:
 ```
 git clone https://github.com/swiss-ai/transformers.git
 cd transformers

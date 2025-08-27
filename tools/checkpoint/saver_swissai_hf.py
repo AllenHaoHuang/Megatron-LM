@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 
 import torch
 import torch.multiprocessing as mp
-from transformers import AutoModelForCausalLM, SwissAIConfig, SwissAIForCausalLM, GenerationConfig
+from transformers import AutoModelForCausalLM, GenerationConfig, ApertusConfig, ApertusForCausalLM
 
 sys.path.append(os.path.abspath(
     os.path.join(os.path.dirname(__file__),
@@ -114,7 +114,7 @@ def save_checkpoint(queue: mp.Queue, args):
     elif md.checkpoint_args.xielu:
         activation = "xielu"
     else:
-        raise ValueError("SwissAI model must use xielu or swiglu")
+        raise ValueError("Apertus model must use xielu or swiglu")
 
     torch_dtype = torch.float32
     if md.checkpoint_args.bf16:
@@ -152,7 +152,7 @@ def save_checkpoint(queue: mp.Queue, args):
             tokenizer.save_pretrained(args.save_dir)
 
         ### save config.json
-        llama_conf = SwissAIConfig(
+        llama_conf = ApertusConfig(
             vocab_size=md.true_vocab_size if md.true_vocab_size else md.checkpoint_args.padded_vocab_size,
             hidden_size=md.checkpoint_args.hidden_size,
             intermediate_size=md.checkpoint_args.ffn_hidden_size,
@@ -174,8 +174,8 @@ def save_checkpoint(queue: mp.Queue, args):
             torch_dtype=torch_dtype,
             attention_dropout=md.checkpoint_args.attention_dropout,
             hidden_dropout=md.checkpoint_args.hidden_dropout,
-            model_type="swissai",
-            architectures=["SwissAIForCausalLM"],
+            model_type="apertus",
+            architectures=["ApertusForCausalLM"],
             qk_norm=md.checkpoint_args.qk_layernorm,
             post_norm=md.checkpoint_args.post_layer_norm if hasattr(md.checkpoint_args, "post_layer_norm") else False
         )
@@ -363,7 +363,7 @@ def save_checkpoint(queue: mp.Queue, args):
         del state_dict
         gc.collect()
         print(f"Loading the converted pytorch checkpoint in a Llama HF model from {tmp_save_dir}")
-        model = SwissAIForCausalLM.from_pretrained(
+        model = ApertusForCausalLM.from_pretrained(
             str(tmp_save_dir), torch_dtype=torch.bfloat16, low_cpu_mem_usage=False # last arg requires a recent version of accelerate
         )
 
