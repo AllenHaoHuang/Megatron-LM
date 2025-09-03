@@ -76,6 +76,8 @@ class CoreLocalSchema(CoreSchema):
             # xielu weights
             "mlp_xielu_alpha_p" : "mlp.activation_func.alpha_p",
             "mlp_xielu_alpha_n" : "mlp.activation_func.alpha_n",
+            "mlp_xielu_beta" : "mlp.activation_func.beta",
+            "mlp_xielu_eps" : "mlp.activation_func.eps",
         })
 
 
@@ -107,6 +109,8 @@ class CoreTESchema(CoreSchema):
             # xielu weights
             "mlp_xielu_alpha_p" : "mlp.activation_func.alpha_p",
             "mlp_xielu_alpha_n" : "mlp.activation_func.alpha_n",
+            "mlp_xielu_beta" : "mlp.activation_func.beta",
+            "mlp_xielu_eps" : "mlp.activation_func.eps",
 
         })
 
@@ -143,6 +147,8 @@ class CoreMoETESchema(CoreSchema):
             # xielu weights
             **{f"mlp_xielu_alpha_p.{expert_idx}" : f"mlp.experts.local_experts.{expert_idx}.activation_func.alpha_p.weight" for expert_idx in range(num_local_experts) },
             **{f"mlp_xielu_alpha_n.{expert_idx}" : f"mlp.experts.local_experts.{expert_idx}.activation_func.alpha_n.weight" for expert_idx in range(num_local_experts) },
+            **{f"mlp_xielu_beta.{expert_idx}" : f"mlp.experts.local_experts.{expert_idx}.activation_func.beta" for expert_idx in range(num_local_experts) },
+            **{f"mlp_xielu_eps.{expert_idx}" : f"mlp.experts.local_experts.{expert_idx}.activation_func.eps" for expert_idx in range(num_local_experts) },
         })
 
 
