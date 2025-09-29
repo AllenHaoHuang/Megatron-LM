@@ -23,6 +23,8 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.utils import divide
 
+from megatron.training.activations import XSSS
+
 from .enums import AttnMaskType
 from .transformer_config import TransformerConfig
 
@@ -367,12 +369,16 @@ class Attention(MegatronModule, ABC):
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
 
         sdpa_gate = None
-        if getattr(self, 'sdpa_gating', False):
+        if self.sdpa_gating or self.sdpa_gating_xss:
             # flatten tokens: [sq*b, h]
             x = hidden_states.view(-1, hidden_states.size(-1))
             sdpa_gate, _ = self.sdpa_gate_proj(x)                 # [sq*b, h]  ← element-wise
-            sdpa_gate = torch.sigmoid(sdpa_gate)                 # keep in [0,1]
+            if self.sdpa_gating:
+                sdpa_gate = torch.sigmoid(sdpa_gate)                 # keep in [0,1]
+            elif self.sdpa_gating_xss:
+                sdpa_gate = self.xsss(sdpa_gate)
             sdpa_gate = sdpa_gate.view(*hidden_states.shape)     # [sq, b, h]
+            
 
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
@@ -531,7 +537,8 @@ class SelfAttention(Attention):
         )
 
         self.sdpa_gating = getattr(config, 'sdpa_gating', False)
-        if self.sdpa_gating:
+        self.sdpa_gating_xsss = getattr(config, 'sdpa_gating_xsss', False)
+        if self.sdpa_gating or self.sdpa_gating_xsss:
             # one scalar per *local* attention head
             self.sdpa_gate_proj = build_module(
                 submodules.sdpa_gate_proj,
@@ -543,6 +550,9 @@ class SelfAttention(Attention):
                 config=config,
                 tp_comm_buffer_name='sdpa_gate',  # optional
             )
+
+        if self.sdpa_gating_xsss:
+            self.xsss = XSSS()
 
         if submodules.q_layernorm is not None:
             self.q_layernorm = build_module(
