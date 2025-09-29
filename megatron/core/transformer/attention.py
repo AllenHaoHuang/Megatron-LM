@@ -370,11 +370,9 @@ class Attention(MegatronModule, ABC):
         if getattr(self, 'sdpa_gating', False):
             # flatten tokens: [sq*b, h]
             x = hidden_states.view(-1, hidden_states.size(-1))
-            sdpa_gate, _ = self.sdpa_gate_proj(x)                # [sq*b, np]
-            sdpa_gate = sdpa_gate.view(hidden_states.size(0),    # [sq, b, np]
-                             hidden_states.size(1),
-                             self.num_attention_heads_per_partition)
+            sdpa_gate = self.sdpa_gate_proj(x)                   # [sq*b, h]  ← element-wise
             sdpa_gate = torch.sigmoid(sdpa_gate)                 # keep in [0,1]
+            sdpa_gate = sdpa_gate.view(*hidden_states.shape)     # [sq, b, h]
 
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
@@ -476,12 +474,8 @@ class Attention(MegatronModule, ABC):
             )
 
         if sdpa_gate is not None:
-            # core_attn_out: [sq, b, np * hn]   gate: [sq, b, np]
-            sq, b, _ = core_attn_out.shape
-            hn = self.hidden_size_per_attention_head
-            gate = sdpa_gate.unsqueeze(-1).expand(sq, b, -1, hn)  # [sq, b, np, hn]
-            core_attn_out = core_attn_out.view(sq, b, -1, hn) * gate
-            core_attn_out = core_attn_out.view(sq, b, -1)
+            # core_attn_out: [sq, b, h]   gate: [sq, b, h]
+            core_attn_out = core_attn_out * sdpa_gate
 
         if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
             # reshape to same output shape as unpacked case
@@ -542,7 +536,7 @@ class SelfAttention(Attention):
             self.sdpa_gate_proj = build_module(
                 submodules.sdpa_gate_proj,
                 config.hidden_size,
-                self.num_attention_heads_per_partition,
+                config.hidden_size,
                 bias=False,
                 gather_output=False,
                 init_method=config.init_method,
