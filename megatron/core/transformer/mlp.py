@@ -19,7 +19,7 @@ from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.training.activations import XIELU
+from megatron.training.activations import XIELU, XSSSLUR2
 
 
 @dataclass
@@ -79,6 +79,8 @@ class MLP(MegatronModule):
 
         if self.config.activation_func == XIELU:
             self.activation_func = XIELU(config=self.config)
+        elif self.config.activation_func == XSSSLUR2:
+            self.activation_func = XSSSLUR2(config=self.config)
         else:
             self.activation_func = self.config.activation_func
 
