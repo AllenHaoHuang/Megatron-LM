@@ -367,7 +367,8 @@ class Attention(MegatronModule, ABC):
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
 
         sdpa_gate = None
-        if getattr(self, 'sdpa_gating', False):
+        # if getattr(self, 'sdpa_gating', False):
+        if True:
             # flatten tokens: [sq*b, h]
             x = hidden_states.view(-1, hidden_states.size(-1))
             sdpa_gate = self.sdpa_gate_proj(x)                   # [sq*b, h]  ← element-wise
@@ -473,7 +474,8 @@ class Attention(MegatronModule, ABC):
                 packed_seq_params=packed_seq_params,
             )
 
-        if sdpa_gate is not None:
+        # if sdpa_gate is not None:
+        if True:
             # core_attn_out: [sq, b, h]   gate: [sq, b, h]
             core_attn_out = core_attn_out * sdpa_gate
 
@@ -531,7 +533,8 @@ class SelfAttention(Attention):
         )
 
         self.sdpa_gating = getattr(config, 'sdpa_gating', False)
-        if self.sdpa_gating:
+        # if self.sdpa_gating:
+        if True:
             # one scalar per *local* attention head
             self.sdpa_gate_proj = build_module(
                 submodules.sdpa_gate_proj,
