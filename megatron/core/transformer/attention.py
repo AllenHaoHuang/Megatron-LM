@@ -369,13 +369,13 @@ class Attention(MegatronModule, ABC):
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
 
         sdpa_gate = None
-        if self.sdpa_gating or self.sdpa_gating_xss:
+        if self.sdpa_gating or self.sdpa_gating_xsss:
             # flatten tokens: [sq*b, h]
             x = hidden_states.view(-1, hidden_states.size(-1))
             sdpa_gate, _ = self.sdpa_gate_proj(x)                 # [sq*b, h]  ← element-wise
             if self.sdpa_gating:
                 sdpa_gate = torch.sigmoid(sdpa_gate)                 # keep in [0,1]
-            elif self.sdpa_gating_xss:
+            elif self.sdpa_gating_xsss:
                 sdpa_gate = self.xsss(sdpa_gate)
             sdpa_gate = sdpa_gate.view(*hidden_states.shape)     # [sq, b, h]
             
