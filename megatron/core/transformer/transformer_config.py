@@ -138,6 +138,12 @@ class TransformerConfig(ModelParallelConfig):
     layernorm_init: Optional[float] = None
     """Initialization value for layernorms."""
 
+    sdpa_gating: bool = False
+    """SDPA gating with sigmoid."""
+    
+    sdpa_gating_xsss: bool = False
+    """SDPA gating with xSSS."""
+
     ####################
     # initialization
     ####################
