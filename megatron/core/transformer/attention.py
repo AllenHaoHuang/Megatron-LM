@@ -49,6 +49,7 @@ class SelfAttentionSubmodules:
     """
 
     linear_qkv: Union[ModuleSpec, type] = None
+    linear_sdpa: Union[ModuleSpec, type] = None # TODO fuse with linear_qkv
     core_attention: Union[ModuleSpec, type] = None
     linear_proj: Union[ModuleSpec, type] = None
     q_layernorm: Union[ModuleSpec, type] = None
@@ -365,6 +366,27 @@ class Attention(MegatronModule, ABC):
         # self or cross attn.
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
 
+        # we do it early so that activation-checkpointing sees the gate
+        sdpa_gate = None
+        if self.sdpa_gating and hasattr(self, 'sdpa_gate_proj'):
+            # flatten tokens: [sq*b, h]
+            x = hidden_states.view(-1, hidden_states.size(-1))
+            gate, _ = self.sdpa_gate_proj(x)                     # [sq*b, np]
+            gate = gate.view(hidden_states.size(0),               # [sq, b, np]
+                             hidden_states.size(1),
+                             self.num_attention_heads_per_partition)
+            sdpa_gate = torch.sigmoid(gate)                      # keep in [0,1]
+
+        sdpa_gate = None
+        if self.sdpa_gating and hasattr(self, 'sdpa_gate_proj'):
+            # flatten tokens: [sq*b, h]
+            x = hidden_states.view(-1, hidden_states.size(-1))
+            sdpa_gate, _ = self.sdpa_gate_proj(x)                # [sq*b, np]
+            sdpa_gate = sdpa_gate.view(hidden_states.size(0),    # [sq, b, np]
+                             hidden_states.size(1),
+                             self.num_attention_heads_per_partition)
+            sdpa_gate = torch.sigmoid(sdpa_gate)                 # keep in [0,1]
+
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
@@ -464,6 +486,14 @@ class Attention(MegatronModule, ABC):
                 packed_seq_params=packed_seq_params,
             )
 
+        if sdpa_gate is not None:
+            # core_attn_out: [sq, b, np * hn]   gate: [sq, b, np]
+            sq, b, _ = core_attn_out.shape
+            hn = self.hidden_size_per_attention_head
+            gate = sdpa_gate.unsqueeze(-1).expand(sq, b, -1, hn)  # [sq, b, np, hn]
+            core_attn_out = core_attn_out.view(sq, b, -1, hn) * gate
+            core_attn_out = core_attn_out.view(sq, b, -1)
+
         if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
             # reshape to same output shape as unpacked case
             # (t, np, hn) -> (t, b=1, h=np*hn)
@@ -516,6 +546,18 @@ class SelfAttention(Attention):
             is_expert=False,
             tp_comm_buffer_name='qkv',
         )
+
+        self.sdpa_gating = getattr(config, 'sdpa_gating', False)
+        if self.sdpa_gating:
+            # one scalar per *local* attention head
+            self.sdpa_gate_proj = tensor_parallel.ColumnParallelLinear(
+                config.hidden_size,
+                self.num_attention_heads_per_partition,
+                bias=False,
+                gather_output=False,
+                init_method=config.init_method,
+                config=config,
+            )
 
         if submodules.q_layernorm is not None:
             self.q_layernorm = build_module(
