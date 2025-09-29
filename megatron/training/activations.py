@@ -34,7 +34,7 @@ class XIELU(MegatronModule):
 def compiled_xssslur2(x, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
     return torch.where(x > 0,
                       alpha_p * x * x + beta * x,
-                      alpha_n * x * (torch.nn.functional.softsign(x) + 1))
+                      alpha_n * x * torch.nn.functional.softsign(x) + 0.5 * x)
 
 
 class XSSSLUR2(MegatronModule):
@@ -68,7 +68,7 @@ class SSS(MegatronModule):
 
 @jit_fuser
 def xsss(x, alpha):
-    return alpha * (torch.nn.functional.softsign(x) + 1)
+    return alpha * torch.nn.functional.softsign(x) + 0.5
 
 
 # drop in replacement for sigmoid in SiLU and multiplicative gating with sigmoid
