@@ -367,7 +367,7 @@ class Attention(MegatronModule, ABC):
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
 
         sdpa_gate = None
-        if self.sdpa_gating and hasattr(self, 'sdpa_gate_proj'):
+        if getattr(self, 'sdpa_gating', False):
             # flatten tokens: [sq*b, h]
             x = hidden_states.view(-1, hidden_states.size(-1))
             sdpa_gate, _ = self.sdpa_gate_proj(x)                # [sq*b, np]
