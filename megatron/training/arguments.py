@@ -21,7 +21,7 @@ from megatron.core.models.retro.utils import (
 from megatron.core.transformer import TransformerConfig, MLATransformerConfig
 from megatron.core.transformer.enums import AttnBackend
 from megatron.core.utils import is_torch_min_version
-from megatron.training.activations import squared_relu, XIELU
+from megatron.training.activations import squared_relu, XIELU, XSSSLUR2 
 from megatron.training.utils import update_use_dist_ckpt
 
 
@@ -894,7 +894,7 @@ def core_transformer_config_from_args(args, config_class=None):
     kw_args['num_layers_in_first_pipeline_stage']= args.decoder_first_pipeline_num_layers
     kw_args['num_layers_in_last_pipeline_stage']= args.decoder_last_pipeline_num_layers
 
-    activation_flags = [args.swiglu, args.squared_relu, args.xielu]
+    activation_flags = [args.swiglu, args.squared_relu, args.xielu, args.xssslur2]
     if sum(activation_flags) > 1:
         raise ValueError("Only one activation function can be selected at a time")
     if args.swiglu:
@@ -907,6 +907,8 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['activation_func'] = squared_relu
     if args.xielu:
         kw_args['activation_func'] = XIELU
+    if args.xssslur2:
+        kw_args['activation_func'] = XSSSLUR2
         
     if args.init_method_xavier_uniform:
         kw_args['init_method'] = torch.nn.init.xavier_uniform_
@@ -1119,7 +1121,9 @@ def _add_network_size_args(parser):
     group.add_argument('--squared-relu', action='store_true',
                        help='Use squared relu activation instead of default gelu')
     group.add_argument('--xielu', action='store_true',
-                       help='Use xielu activation instead of default gelu')
+                       help='Use xielu activation, an extension of squared relu to handle negative inputs')
+    group.add_argument('--xssslur2', action='store_true',
+                       help='Use xssslur2 activation, a more efficient xielu')
     group.add_argument('--swiglu', action='store_true',
                        help='Use gated linear units and SiLU activation instead of default gelu')
     group.add_argument('--onnx-safe', type=bool, required=False,
