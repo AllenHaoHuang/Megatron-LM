@@ -371,7 +371,7 @@ class Attention(MegatronModule, ABC):
         if True:
             # flatten tokens: [sq*b, h]
             x = hidden_states.view(-1, hidden_states.size(-1))
-            sdpa_gate = self.sdpa_gate_proj(x)                   # [sq*b, h]  ← element-wise
+            sdpa_gate, _ = self.sdpa_gate_proj(x)                 # [sq*b, h]  ← element-wise
             sdpa_gate = torch.sigmoid(sdpa_gate)                 # keep in [0,1]
             sdpa_gate = sdpa_gate.view(*hidden_states.shape)     # [sq, b, h]
 
