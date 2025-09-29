@@ -1146,6 +1146,10 @@ def _add_network_size_args(parser):
                        help='Untie embeddings and output weights.')
     group.add_argument('--multi-latent-attention', action='store_true',
                        help='Use multi-latent attention for model.')
+    group.add_argument('--sdpa-gating', action='store_true',
+                       help='Apply sigmoid gating to SDPA output, sigmoid(x) * y')
+    group.add_argument('--sdpa-gating-xsss', action='store_true',
+                       help='Apply xSSS gating to SDPA output, xSSS(x) * y')
 
     # OP arguments
     group.add_argument('--no-attn-layernorm', action='store_false', dest='attn_layernorm',
