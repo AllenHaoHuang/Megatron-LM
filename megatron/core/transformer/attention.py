@@ -366,17 +366,6 @@ class Attention(MegatronModule, ABC):
         # self or cross attn.
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
 
-        # we do it early so that activation-checkpointing sees the gate
-        sdpa_gate = None
-        if self.sdpa_gating and hasattr(self, 'sdpa_gate_proj'):
-            # flatten tokens: [sq*b, h]
-            x = hidden_states.view(-1, hidden_states.size(-1))
-            gate, _ = self.sdpa_gate_proj(x)                     # [sq*b, np]
-            gate = gate.view(hidden_states.size(0),               # [sq, b, np]
-                             hidden_states.size(1),
-                             self.num_attention_heads_per_partition)
-            sdpa_gate = torch.sigmoid(gate)                      # keep in [0,1]
-
         sdpa_gate = None
         if self.sdpa_gating and hasattr(self, 'sdpa_gate_proj'):
             # flatten tokens: [sq*b, h]
