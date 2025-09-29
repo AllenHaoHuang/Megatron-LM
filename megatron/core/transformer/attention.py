@@ -49,7 +49,7 @@ class SelfAttentionSubmodules:
     """
 
     linear_qkv: Union[ModuleSpec, type] = None
-    linear_sdpa: Union[ModuleSpec, type] = None # TODO fuse with linear_qkv
+    sdpa_gate_proj: Union[ModuleSpec, type] = None  # TODO fuse with linear_qkv
     core_attention: Union[ModuleSpec, type] = None
     linear_proj: Union[ModuleSpec, type] = None
     q_layernorm: Union[ModuleSpec, type] = None
@@ -539,13 +539,15 @@ class SelfAttention(Attention):
         self.sdpa_gating = getattr(config, 'sdpa_gating', False)
         if self.sdpa_gating:
             # one scalar per *local* attention head
-            self.sdpa_gate_proj = tensor_parallel.ColumnParallelLinear(
+            self.sdpa_gate_proj = build_module(
+                submodules.sdpa_gate_proj,
                 config.hidden_size,
                 self.num_attention_heads_per_partition,
                 bias=False,
                 gather_output=False,
                 init_method=config.init_method,
                 config=config,
+                tp_comm_buffer_name='sdpa_gate',  # optional
             )
 
         if submodules.q_layernorm is not None:
