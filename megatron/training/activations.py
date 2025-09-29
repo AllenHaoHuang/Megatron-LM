@@ -52,7 +52,7 @@ def xsss(x, alpha):
 
 # drop in replacement for sigmoid in SiLU and multiplicative gating with sigmoid
 class XSSS(MegatronModule):
-    def __init__(self, config=None, alpha_init=0.5, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_init=0.8, dtype=torch.bfloat16):
         super().__init__(config=config)
         self.config = config
         self.alpha = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
