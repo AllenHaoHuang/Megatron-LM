@@ -31,9 +31,30 @@ class XIELU(MegatronModule):
 
 
 @jit_fuser
+def compiled_xssslur2(x, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
+    return torch.where(x > 0,
+                      alpha_p * x * x + beta * x,
+                      alpha_n * x * (torch.nn.functional.softsign(x) + 1))
+
+
+class XSSSLUR2(MegatronModule):
+    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+        super().__init__(config=config)
+        self.config = config
+        self.alpha_p = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.beta = beta
+        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+
+    def forward(self, x):
+        alpha_p = F.softplus(self.alpha_p)
+        alpha_n = self.beta + F.softplus(self.alpha_n)
+        return compiled_xssslur2(x, alpha_p, alpha_n, self.beta, self.eps)
+
+
+@jit_fuser
 def sss(x):
     return 0.5 * (torch.nn.functional.softsign(x) + 1)
-
 
 
 # drop in replacement for sigmoid in GLU settings and multiplicative gating with SiLU
