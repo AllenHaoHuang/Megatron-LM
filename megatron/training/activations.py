@@ -73,7 +73,7 @@ class XSSSLUPR3(MegatronModule):
         alpha_p2 = F.softplus(self.alpha_p2)
         alpha_p3 = F.softplus(self.alpha_p3)
         alpha_n = self.beta + F.softplus(self.alpha_n)
-        return compiled_xssslur2(x, alpha_p2, alpha_p3, alpha_n, self.beta, self.eps)
+        return compiled_xssslupr3(x, alpha_p2, alpha_p3, alpha_n, self.beta, self.eps)
 
 
 @jit_fuser
