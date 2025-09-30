@@ -53,6 +53,30 @@ class XSSSLUR2(MegatronModule):
 
 
 @jit_fuser
+def compiled_xssslupr3(x, alpha_p2, alpha_p3, alpha_n, beta=0.5, eps=-1e-6):
+    return torch.where(x > 0,
+                      alpha_p3 * x * x * x + alpha_p2 * x * x + beta * x,
+                      alpha_n * x * torch.nn.functional.softsign(x) + 0.5 * x)
+
+
+class XSSSLUPR3(MegatronModule):
+    def __init__(self, config=None, alpha_p2_init=0.8, alpha_p3_init=0.4, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+        super().__init__(config=config)
+        self.config = config
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p2_init, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p3_init, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.beta = beta
+        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+
+    def forward(self, x):
+        alpha_p2 = F.softplus(self.alpha_p2)
+        alpha_p3 = F.softplus(self.alpha_p3)
+        alpha_n = self.beta + F.softplus(self.alpha_n)
+        return compiled_xssslur2(x, alpha_p2, alpha_p3, alpha_n, self.beta, self.eps)
+
+
+@jit_fuser
 def sss(x):
     return 0.5 * (torch.nn.functional.softsign(x) + 1)
 
