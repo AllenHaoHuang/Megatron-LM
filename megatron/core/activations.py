@@ -109,7 +109,7 @@ class SSSGLU(MegatronModule):
     def __init__(self, config=None):
         super().__init__(config=config)
 
-    def forward(self, x):
+    def forward(self, x, y):
         return sssglu(x, y)
 
 
