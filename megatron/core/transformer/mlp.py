@@ -208,7 +208,7 @@ class MLP(MegatronModule):
 
                 def glu_2(x):
                     x = torch.chunk(x, 2, dim=-1)
-                    return self.config.activation_func(x[0], x[1])
+                    return self.activation_func(x[0], x[1])
 
                 # Fix code for SwiGLU
                 intermediate_parallel = glu_2(intermediate_parallel)
