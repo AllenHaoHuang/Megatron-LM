@@ -21,7 +21,7 @@ from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl, weighted_b
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.activations import XIELU, XSSSLUR2
+from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2
 from megatron.core.utils import (
     get_tensor_model_parallel_group_if_none,
     nvtx_range_pop,
@@ -120,8 +120,18 @@ class MLP(MegatronModule):
         else:
             if self.config.activation_func == XIELU:
                 self.activation_func = XIELU(config=self.config)
+            elif self.config.activation_func == SSSLU:
+                self.activation_func = SSSLU(config=self.config)
+            elif self.config.activation_func == XSSSLU:
+                self.activation_func = XSSSLU(config=self.config)
+            elif self.config.activation_func == SSSGLU:
+                self.activation_func = SSSGLU(config=self.config)
+            elif self.config.activation_func == XSSSGLU:
+                self.activation_func = XSSSGLU(config=self.config)
             elif self.config.activation_func == XSSSLUR2:
                 self.activation_func = XSSSLUR2(config=self.config)
+            elif self.config.activation_func == GXSSSLUR2:
+                self.activation_func = GXSSSLUR2(config=self.config)
             else:
                 self.activation_func = self.config.activation_func
 
@@ -196,7 +206,12 @@ class MLP(MegatronModule):
                     x = torch.chunk(x, 2, dim=-1)
                     return self.config.activation_func(x[0]) * x[1]
 
-                intermediate_parallel = glu(intermediate_parallel)
+                def glu_2(x):
+                    x = torch.chunk(x, 2, dim=-1)
+                    return self.config.activation_func(x[0], x[1])
+
+                # Fix code for SwiGLU
+                intermediate_parallel = glu_2(intermediate_parallel)
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
