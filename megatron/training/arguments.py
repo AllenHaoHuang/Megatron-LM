@@ -33,7 +33,7 @@ from megatron.core.utils import (
     is_te_min_version,
     is_torch_min_version,
 )
-from megatron.core.activations import squared_relu, XIELU, XSSSLUR2
+from megatron.core.activations import squared_relu, XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2
 from megatron.training.utils import (
     get_device_arch_version,
     update_use_dist_ckpt,
@@ -1240,7 +1240,8 @@ def core_transformer_config_from_args(args, config_class=None):
     kw_args['num_layers_in_last_pipeline_stage']= args.decoder_last_pipeline_num_layers
     kw_args['fp8_param'] = args.fp8_param_gather
 
-    activation_flags = [args.relu, args.silu, args.squared_relu, args.xielu, args.swiglu, args.xssslur2]
+    activation_flags = [args.relu, args.ssslu, args.silu, args.xssslu, args.squared_relu, args.xielu, args.swiglu, args.sssglu, args.xsssglu, args.xssslur2, args.gxssslur2]
+    
     if sum(activation_flags) > 1:
         raise ValueError("Only one activation function can be selected at a time")
     if args.swiglu:
@@ -1260,6 +1261,22 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['activation_func'] = F.relu
     if args.silu:
         kw_args['activation_func'] = F.silu
+    if args.ssslu:
+        kw_args['activation_func'] = SSSLU
+    if args.xssslu:
+        kw_args['activation_func'] = XSSSLU
+    if args.sssglu:
+        kw_args['activation_func'] = SSSGLU
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+    if args.xsssglu:
+        kw_args['activation_func'] = XSSSGLU
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+    if args.gxssslur2:
+        kw_args['activation_func'] = GXSSSLUR2
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
 
     if args.init_method_xavier_uniform:
         kw_args['init_method'] = torch.nn.init.xavier_uniform_
@@ -1617,6 +1634,17 @@ def _add_network_size_args(parser):
                        help='Use ReLU activation')
     group.add_argument('--silu', action='store_true',
                        help='Use SiLU activation')
+    group.add_argument('--ssslu', action='store_true',
+                       help='Use SSSLU activation')
+    group.add_argument('--xssslu', action='store_true',
+                       help='Use xSSSLU activation')
+    group.add_argument('--sssglu', action='store_true',
+                       help='Use SSSGLU activation')
+    group.add_argument('--xsssglu', action='store_true',
+                       help='Use xSSSGLU activation')
+    group.add_argument('--gxssslur2', action='store_true',
+                       help='Use GxSSSGLU activation')
+    
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')
