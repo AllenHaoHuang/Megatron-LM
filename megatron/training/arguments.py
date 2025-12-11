@@ -1240,7 +1240,7 @@ def core_transformer_config_from_args(args, config_class=None):
     kw_args['num_layers_in_last_pipeline_stage']= args.decoder_last_pipeline_num_layers
     kw_args['fp8_param'] = args.fp8_param_gather
 
-    activation_flags = [args.swiglu, args.squared_relu, args.xielu, args.xssslur2]
+    activation_flags = [args.relu, args.silu, args.squared_relu, args.xielu, args.swiglu, args.xssslur2]
     if sum(activation_flags) > 1:
         raise ValueError("Only one activation function can be selected at a time")
     if args.swiglu:
@@ -1256,6 +1256,10 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['activation_func'] = XIELU
     elif args.xssslur2:
         kw_args['activation_func'] = XSSSLUR2
+    if args.relu:
+        kw_args['activation_func'] = F.relu
+    if args.silu:
+        kw_args['activation_func'] = F.silu
 
     if args.init_method_xavier_uniform:
         kw_args['init_method'] = torch.nn.init.xavier_uniform_
@@ -1609,6 +1613,10 @@ def _add_network_size_args(parser):
                        help='Applies differential attention')
     group.add_argument('--swiglu', action='store_true',
                        help='Use gated linear units and SiLU activation instead of default gelu')
+    group.add_argument('--relu', action='store_true',
+                       help='Use ReLU activation')
+    group.add_argument('--silu', action='store_true',
+                       help='Use SiLU activation')
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')
