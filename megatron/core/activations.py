@@ -34,7 +34,7 @@ class XIELU(MegatronModule):
 def compiled_xssslur2(x, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
     return torch.where(x > 0,
                       alpha_p * x * x + beta * x,
-                      alpha_n * x * torch.nn.functional.softsign(x) + 0.5 * x)
+                      alpha_n * x * torch.nn.functional.softsign(x) + beta * x)
 
 
 class XSSSLUR2(MegatronModule):
@@ -56,7 +56,7 @@ class XSSSLUR2(MegatronModule):
 def compiled_gxssslur2(x, y, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
     return torch.where(x > 0,
                       alpha_p * x * y + beta * y,
-                      alpha_n * y * torch.nn.functional.softsign(x) + 0.5 * y)
+                      alpha_n * y * torch.nn.functional.softsign(x) + beta * y)
 
 
 class GXSSSLUR2(MegatronModule):
