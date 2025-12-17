@@ -1285,7 +1285,7 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['activation_func'] = GXSSSLUR2
         kw_args['gated_linear_unit'] = True
         kw_args['bias_activation_fusion'] = False
-    if args.gxssslurr:
+    if args.gxssslupr:
         kw_args['activation_func'] = GXSSSLUPR
         kw_args['gated_linear_unit'] = True
         kw_args['bias_activation_fusion'] = False
