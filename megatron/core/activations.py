@@ -53,6 +53,30 @@ class XSSSLUR2(MegatronModule):
 
 
 @jit_fuser
+def compiled_xssslupr(x, alpha_p1, alpha_p2, alpha_n, beta=0.5, eps=-1e-6):
+    return torch.where(x > 0,
+                      alpha_p2 * x * x * x + alpha_p1 * x * x + beta * x,
+                      alpha_n * x * torch.nn.functional.softsign(x) + beta * x)
+
+
+class XSSSLUPR(MegatronModule):
+    def __init__(self, config=None, alpha_p_init=0.4, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+        super().__init__(config=config)
+        self.config = config
+        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.beta = beta
+        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+
+    def forward(self, x):
+        alpha_p1 = F.softplus(self.alpha_p1)
+        alpha_p2 = F.softplus(self.alpha_p2)
+        alpha_n = self.beta + F.softplus(self.alpha_n)
+        return compiled_xssslupr(x, alpha_p1, alpha_p2, alpha_n, self.beta, self.eps)
+
+
+@jit_fuser
 def compiled_gxssslur2(x, y, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
     return torch.where(x > 0,
                       alpha_p * x * y + beta * y,
@@ -72,6 +96,66 @@ class GXSSSLUR2(MegatronModule):
         alpha_p = F.softplus(self.alpha_p)
         alpha_n = self.beta + F.softplus(self.alpha_n)
         return compiled_gxssslur2(x, y, alpha_p, alpha_n, self.beta, self.eps)
+
+
+@jit_fuser
+def compiled_gxssslupr(x, y, alpha_p1, alpha_p2, alpha_n, beta=0.5, eps=-1e-6):
+    return torch.where(x > 0,
+                      alpha_p2 * x * x * y + alpha_p1 * x * y + beta * y,
+                      alpha_n * y * torch.nn.functional.softsign(x) + beta * y)
+
+
+class GXSSSLUPR(MegatronModule):
+    def __init__(self, config=None, alpha_p_init=0.4, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+        super().__init__(config=config)
+        self.config = config
+        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.beta = beta
+        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+
+    def forward(self, x, y):
+        alpha_p1 = F.softplus(self.alpha_p1)
+        alpha_p2 = F.softplus(self.alpha_p2)
+        alpha_n = self.beta + F.softplus(self.alpha_n)
+        return compiled_gxssslupr(x, y, alpha_p1, alpha_p2, alpha_n, self.beta, self.eps)
+
+
+@jit_fuser
+def compiled_polyrelu(x, alpha_p1, alpha_p2, alpha_p3):
+    relu_x = F.relu(x)
+    return alpha_p1 * relu_x + alpha_p2 * torch.pow(relu_x, 2) + alpha_p3 * torch.pow(relu_x, 3)
+
+
+class PolyReLU(MegatronModule):
+    def __init__(self, config=None, alpha_init=0.33, dtype=torch.bfloat16):
+        super().__init__(config=config)
+        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+
+    def forward(self, x):
+        return compiled_polyrelu(x, self.alpha_p1, self.alpha_p2, self.alpha_p3)
+
+
+@jit_fuser
+def compiled_polynorm(x, alpha_p1, alpha_p2, alpha_p3):
+    def norm(self, x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+    return alpha_p1 * norm(x) + alpha_p2 * norm(x * x) + alpha_p3 * norm(x * x * x)
+
+
+class PolyNorm(MegatronModule):
+    def __init__(self, config=None, alpha_init=0.33, dtype=torch.bfloat16, eps=1e-6):
+        super().__init__(config=config)
+        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.eps = eps
+
+    def forward(self, x):
+        return compiled_polynorm(x, self.alpha_p1, self.alpha_p2, self.alpha_p3, self.eps)
 
 
 @jit_fuser
