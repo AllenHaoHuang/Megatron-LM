@@ -141,7 +141,7 @@ class PolyReLU(MegatronModule):
 
 @jit_fuser
 def compiled_polynorm(x, alpha_p1, alpha_p2, alpha_p3, eps=1e-6):
-    def norm(self, x):
+    def norm(x):
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
     return alpha_p1 * norm(x) + alpha_p2 * norm(x * x) + alpha_p3 * norm(x * x * x)
 
