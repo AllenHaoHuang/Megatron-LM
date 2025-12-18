@@ -32,9 +32,11 @@ class XIELU(MegatronModule):
 
 @jit_fuser
 def compiled_xssslur2(x, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
-    return torch.where(x > 0,
+    def norm(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
+    return norm(torch.where(x > 0,
                       alpha_p * x * x + beta * x,
-                      alpha_n * x * torch.nn.functional.softsign(x) + beta * x)
+                      alpha_n * x * torch.nn.functional.softsign(x) + beta * x))
 
 
 class XSSSLUR2(MegatronModule):
