@@ -32,11 +32,9 @@ class XIELU(MegatronModule):
 
 @jit_fuser
 def compiled_xssslur2(x, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
-    def norm(x):
-        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
-    return norm(torch.where(x > 0,
+    return torch.where(x > 0,
                       alpha_p * x * x + beta * x,
-                      alpha_n * x * torch.nn.functional.softsign(x) + beta * x))
+                      alpha_n * x * torch.nn.functional.softsign(x) + beta * x)
 
 
 class XSSSLUR2(MegatronModule):
@@ -65,8 +63,8 @@ class XSSSLUPR(MegatronModule):
     def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
         super().__init__(config=config)
         self.config = config
-        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.5, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.5, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.8, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.4, dtype=dtype)) - 1.0).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
         self.beta = beta
         self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
@@ -112,7 +110,7 @@ class GXSSSLUPR(MegatronModule):
         super().__init__(config=config)
         self.config = config
         self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.8, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.1, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.4, dtype=dtype)) - 1.0).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
         self.beta = beta
         self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
