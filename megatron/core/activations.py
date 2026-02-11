@@ -19,10 +19,10 @@ class XIELU(MegatronModule):
     def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
         super().__init__(config=config)
         self.config = config
-        self.alpha_p = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
-        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=torch.bfloat16)) - 1.0).unsqueeze(0))
+        self.alpha_p = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta)) - 1.0).unsqueeze(0))
         self.beta = beta
-        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+        self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x):
         alpha_p = F.softplus(self.alpha_p)
@@ -38,13 +38,13 @@ def compiled_xssslur2(x, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
 
 
 class XSSSLUR2(MegatronModule):
-    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
         super().__init__(config=config)
         self.config = config
-        self.alpha_p = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta)) - 1.0).unsqueeze(0))
         self.beta = beta
-        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+        self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x):
         alpha_p = F.softplus(self.alpha_p)
@@ -60,14 +60,14 @@ def compiled_xssslupr(x, alpha_p1, alpha_p2, alpha_n, beta=0.5, eps=-1e-6):
 
 
 class XSSSLUPR(MegatronModule):
-    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
         super().__init__(config=config)
         self.config = config
-        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.8, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.4, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.8)) - 1.0).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.4)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta)) - 1.0).unsqueeze(0))
         self.beta = beta
-        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+        self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x):
         alpha_p1 = F.softplus(self.alpha_p1)
@@ -84,13 +84,13 @@ def compiled_gxssslur2(x, y, alpha_p, alpha_n, beta=0.5, eps=-1e-6):
 
 
 class GXSSSLUR2(MegatronModule):
-    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
         super().__init__(config=config)
         self.config = config
-        self.alpha_p = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_p_init)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta)) - 1.0).unsqueeze(0))
         self.beta = beta
-        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+        self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x, y):
         alpha_p = F.softplus(self.alpha_p)
@@ -106,14 +106,14 @@ def compiled_gxssslupr(x, y, alpha_p1, alpha_p2, alpha_n, beta=0.5, eps=-1e-6):
 
 
 class GXSSSLUPR(MegatronModule):
-    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
         super().__init__(config=config)
         self.config = config
-        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.8, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.4, dtype=dtype)) - 1.0).unsqueeze(0))
-        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta, dtype=dtype)) - 1.0).unsqueeze(0))
+        self.alpha_p1 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.8)) - 1.0).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.log(torch.exp(torch.tensor(0.4)) - 1.0).unsqueeze(0))
+        self.alpha_n = nn.Parameter(torch.log(torch.exp(torch.tensor(alpha_n_init - beta)) - 1.0).unsqueeze(0))
         self.beta = beta
-        self.eps = torch.tensor(eps, dtype=torch.bfloat16, device='cuda')
+        self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x, y):
         alpha_p1 = F.softplus(self.alpha_p1)
@@ -129,11 +129,11 @@ def compiled_polyrelu(x, alpha_p1, alpha_p2, alpha_p3):
 
 
 class PolyReLU(MegatronModule):
-    def __init__(self, config=None, alpha_init=0.33, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_init=0.33):
         super().__init__(config=config)
-        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
-        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
 
     def forward(self, x):
         return compiled_polyrelu(x, self.alpha_p1, self.alpha_p2, self.alpha_p3)
@@ -147,11 +147,11 @@ def compiled_polynorm(x, alpha_p1, alpha_p2, alpha_p3, eps=1e-6):
 
 
 class PolyNorm(MegatronModule):
-    def __init__(self, config=None, alpha_init=0.33, dtype=torch.bfloat16, eps=1e-6):
+    def __init__(self, config=None, alpha_init=0.33, eps=1e-6):
         super().__init__(config=config)
-        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
-        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
         self.eps = eps
 
     def forward(self, x):
@@ -203,10 +203,10 @@ def xsss(x, alpha):
 
 
 class XSSS(MegatronModule):
-    def __init__(self, config=None, alpha_init=0.8, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_init=0.8):
         super().__init__(config=config)
         self.config = config
-        self.alpha = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
 
     def forward(self, x):
         return xsss(x, self.alpha)
@@ -218,10 +218,10 @@ def xssslu(x, alpha):
 
 
 class XSSSLU(MegatronModule):
-    def __init__(self, config=None, alpha_init=0.8, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_init=0.8):
         super().__init__(config=config)
         self.config = config
-        self.alpha = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
 
     def forward(self, x):
         return xssslu(x, self.alpha)
@@ -233,10 +233,10 @@ def xsssglu(x, y, alpha):
 
 
 class XSSSGLU(MegatronModule):
-    def __init__(self, config=None, alpha_init=0.8, dtype=torch.bfloat16):
+    def __init__(self, config=None, alpha_init=0.8):
         super().__init__(config=config)
         self.config = config
-        self.alpha = nn.Parameter(torch.tensor(alpha_init, dtype=dtype).unsqueeze(0))
+        self.alpha = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
 
     def forward(self, x, y):
         return xsssglu(x, y, self.alpha)
