@@ -151,6 +151,9 @@ class TransformerConfig(ModelParallelConfig):
     activation_func: Callable = F.gelu
     """Activation function to use for the non-linearity in the MLP."""
 
+    post_activation_norm: bool = False
+    """Add normalisation after activation function"""
+
     activation_func_fp8_input_store: bool = False
     """Store the input of MLP activation function in FP8 for backprop to save memory.
     The stored input is casted back to the original precision before backprop compuatation."""
