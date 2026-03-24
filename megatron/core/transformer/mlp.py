@@ -144,7 +144,18 @@ class MLP(MegatronModule):
                 self.activation_func = self.config.activation_func
 
         if getattr(config, 'post_activation_norm', False):
-            from megatron.core.transformer.transformer_block import LayerNormImpl
+            # Local import to avoid circular import
+            try:
+                from megatron.core.extensions.transformer_engine import TENorm
+                LayerNormImpl = TENorm
+            except ImportError:
+                try:
+                    from apex.normalization.fused_layer_norm import FusedLayerNorm
+                    LayerNormImpl = FusedLayerNorm
+                except ImportError:
+                    from megatron.core.transformer.torch_norm import WrappedTorchNorm
+                    LayerNormImpl = WrappedTorchNorm
+            
             self.post_activation_norm = LayerNormImpl(
                 config=self.config,
                 hidden_size=self.config.ffn_hidden_size,
