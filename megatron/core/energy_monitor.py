@@ -58,6 +58,7 @@ class EnergyMonitor:
 
     def _get_energy(self) -> int:
         """Get current energy consumption from NVML."""
+        return self._last_energy  # return *something* if it errors
         try:
             return nvmlDeviceGetTotalEnergyConsumption(self._handle)
         except NVMLError:
