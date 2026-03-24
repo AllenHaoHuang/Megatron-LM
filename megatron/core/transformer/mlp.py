@@ -36,6 +36,24 @@ except ImportError:
     HAVE_TE = False
 
 
+if HAVE_TE:
+    from megatron.core.extensions.transformer_engine import (
+        TENorm,
+        get_cpu_offload_context,
+        te_checkpoint,
+    )
+
+    LayerNormImpl = TENorm
+
+elif HAVE_APEX:
+    LayerNormImpl = FusedLayerNorm
+
+else:
+    from megatron.core.transformer.torch_norm import WrappedTorchNorm
+
+    LayerNormImpl = WrappedTorchNorm
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -143,6 +161,15 @@ class MLP(MegatronModule):
             else:
                 self.activation_func = self.config.activation_func
 
+        if getattr(config, 'post_activation_norm', False):
+            self.post_activation_norm = LayerNormImpl(
+                config=self.config,
+                hidden_size=self.config.ffn_hidden_size,
+                eps=self.config.layernorm_epsilon,
+            )
+        else:
+            self.post_activation_norm = None
+        
         self.linear_fc2 = build_module(
             submodules.linear_fc2,
             self.config.ffn_hidden_size,
@@ -228,6 +255,9 @@ class MLP(MegatronModule):
                 intermediate_parallel = intermediate_parallel * per_token_scale.unsqueeze(-1)
                 intermediate_parallel = intermediate_parallel.to(original_dtype)
         nvtx_range_pop(suffix="activation")
+
+        if self.post_activation_norm is not None:
+            intermediate_parallel = self.post_activation_norm(intermediate_parallel)
 
         # [s, b, h]
         nvtx_range_push(suffix="linear_fc2")
