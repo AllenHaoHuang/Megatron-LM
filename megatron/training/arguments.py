@@ -1666,7 +1666,7 @@ def _add_network_size_args(parser):
                        help='Use GxSSSLUPR activation')
 
     group.add_argument('--post-activation-norm', action='store_true',
-                       help='Use GxSSSLUPR activation')
+                       help='Use norm after activation')
     
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with '
