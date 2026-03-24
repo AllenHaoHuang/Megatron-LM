@@ -36,24 +36,6 @@ except ImportError:
     HAVE_TE = False
 
 
-if HAVE_TE:
-    from megatron.core.extensions.transformer_engine import (
-        TENorm,
-        get_cpu_offload_context,
-        te_checkpoint,
-    )
-
-    LayerNormImpl = TENorm
-
-elif HAVE_APEX:
-    LayerNormImpl = FusedLayerNorm
-
-else:
-    from megatron.core.transformer.torch_norm import WrappedTorchNorm
-
-    LayerNormImpl = WrappedTorchNorm
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -162,6 +144,7 @@ class MLP(MegatronModule):
                 self.activation_func = self.config.activation_func
 
         if getattr(config, 'post_activation_norm', False):
+            from megatron.core.transformer.transformer_block import LayerNormImpl
             self.post_activation_norm = LayerNormImpl(
                 config=self.config,
                 hidden_size=self.config.ffn_hidden_size,
