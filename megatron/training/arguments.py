@@ -32,7 +32,8 @@ from megatron.core.utils import (
     is_te_min_version,
     is_torch_min_version,
 )
-from megatron.core.activations import squared_relu, XIELU, XSSSLUR2
+from megatron.core.activations import squared_relu, XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR
+
 from megatron.core.fusions.fused_bias_geglu import quick_gelu
 from megatron.training.utils import (
     get_device_arch_version,
@@ -1390,7 +1391,9 @@ def core_transformer_config_from_args(args, config_class=None):
     kw_args['num_layers_in_last_pipeline_stage']= args.decoder_last_pipeline_num_layers
     kw_args['fp8_param'] = args.fp8_param_gather
 
-    activation_flags = [args.swiglu, args.squared_relu, args.xielu, args.xssslur2]
+    activation_flags = [args.relu, args.ssslu, args.silu, args.xssslu, args.squared_relu, args.xielu, args.swiglu,
+                        args.sssglu, args.xsssglu, args.xssslur2, args.gxssslur2, \
+                        args.polyrelu, args.polynorm, args.xssslupr, args.gxssslupr, args.nxpr, args.ngxpr]
     if sum(activation_flags) > 1:
         raise ValueError("Only one activation function can be selected at a time")
     if args.swiglu:
@@ -1406,10 +1409,43 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['activation_func'] = XIELU
     elif args.xssslur2:
         kw_args['activation_func'] = XSSSLUR2
-    elif args.quick_geglu:
-        assert not args.swiglu
+    elif args.relu:
+        kw_args['activation_func'] = F.relu
+    elif args.silu:
+        kw_args['activation_func'] = F.silu
+    elif args.ssslu:
+        kw_args['activation_func'] = SSSLU
+    elif args.xssslu:
+        kw_args['activation_func'] = XSSSLU
+    elif args.polyrelu:
+        kw_args['activation_func'] = PolyReLU
+    elif args.polynorm:
+        kw_args['activation_func'] = PolyNorm
+    elif args.xssslupr:
+        kw_args['activation_func'] = XSSSLUPR
+    elif args.nxpr:
+        kw_args['activation_func'] = NXPR
+    elif args.sssglu:
+        kw_args['activation_func'] = SSSGLU
         kw_args['gated_linear_unit'] = True
-        kw_args['activation_func'] = quick_gelu
+        kw_args['bias_activation_fusion'] = False
+    elif args.xsssglu:
+        kw_args['activation_func'] = XSSSGLU
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+    elif args.gxssslur2:
+        kw_args['activation_func'] = GXSSSLUR2
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+    elif args.gxssslupr:
+        kw_args['activation_func'] = GXSSSLUPR
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+    elif args.ngxpr:
+        kw_args['activation_func'] = NGXPR
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+
     if args.init_method_xavier_uniform:
         kw_args['init_method'] = torch.nn.init.xavier_uniform_
         kw_args['scaled_init_method'] = torch.nn.init.xavier_uniform_
