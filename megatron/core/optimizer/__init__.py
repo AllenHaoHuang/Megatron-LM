@@ -134,7 +134,7 @@ def _get_param_groups(
         #  the config_overrides argument by default lead to bias parameters and length 1 parameters.
         #  We assume that users of decoupled LR already provide config overrides so will adapt
         #  to the new API.
-        config_overrides = get_standard_config_overrides()
+        config_overrides = {} # get_standard_config_overrides()
 
     for model_chunk in model_chunks:
         for name, param in model_chunk.named_parameters():
