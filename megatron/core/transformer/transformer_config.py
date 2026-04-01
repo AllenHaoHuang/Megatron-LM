@@ -231,6 +231,9 @@ class TransformerConfig(ModelParallelConfig):
     A list of integers: Defines a custom pattern where 1 means skip RoPE and 0 means apply RoPE.
     For example, [0,1,1,0] means: apply RoPE, skip RoPE, skip RoPE, apply RoPE."""
 
+    attn_xsss_gating: bool = False
+    "Whether to use xSSS gating for attention SDPA gating"
+
     ####################
     # initialization
     ####################
