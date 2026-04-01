@@ -172,7 +172,7 @@ class Attention(MegatronModule, ABC):
 
         self.xsss = None
         if self.config.attn_xsss_gating:
-            self.xsss = XSSS(config=self.config, dtype=gate_activation_dtype)
+            self.xsss = XSSS(config=self.config)
 
         if pg_collection is None:
             pg_collection = ProcessGroupCollection.use_mpu_process_groups(required_pgs=['tp', 'cp'])
