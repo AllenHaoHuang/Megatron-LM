@@ -1909,6 +1909,10 @@ def _add_network_size_args(parser):
     group.add_argument('--glu-linear-offset', type=float, default=0.0,
                        help='Offset term in the GLU activation function: activation_func(x[0]) * (x[1] + offset). '
                             'Only used when gated_linear_unit is True')
+
+    group.add_argument('--attn-xsss-gating', action='store_true',
+                       help='Use xsss gating for attention SDPA gating')
+    
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')
