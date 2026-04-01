@@ -10,6 +10,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from megatron.core import tensor_parallel
+from megatron.core.activations import XSSS
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.jit import jit_fuser
 from megatron.core.models.common.embeddings.rope_utils import (
@@ -168,6 +169,9 @@ class Attention(MegatronModule, ABC):
         # so these two will be the same
         self.query_projection_size = self.config.kv_channels * self.config.num_attention_heads
         self.kv_projection_size = self.config.kv_channels * self.config.num_query_groups
+
+        if self.attn_xsss_gating:
+            self.xsss = XSSS(config=self.config, dtype=gate_activation_dtype)
 
         if pg_collection is None:
             pg_collection = ProcessGroupCollection.use_mpu_process_groups(required_pgs=['tp', 'cp'])
@@ -1092,7 +1096,10 @@ class Attention(MegatronModule, ABC):
         x_dtype = x.dtype
         gate = gate.contiguous()
         gate = gate.view(*x.shape)
-        x = x * torch.sigmoid(gate.float())
+        if self.self.attn_xsss_gating:
+            x = x * self.xsss(gate.float())
+        else:
+            x = x * torch.sigmoid(gate.float())
         x = x.to(x_dtype)
         return x
 
