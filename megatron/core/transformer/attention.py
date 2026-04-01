@@ -170,7 +170,8 @@ class Attention(MegatronModule, ABC):
         self.query_projection_size = self.config.kv_channels * self.config.num_attention_heads
         self.kv_projection_size = self.config.kv_channels * self.config.num_query_groups
 
-        if self.attn_xsss_gating:
+        self.xsss = None
+        if self.config.attn_xsss_gating:
             self.xsss = XSSS(config=self.config, dtype=gate_activation_dtype)
 
         if pg_collection is None:
@@ -1096,7 +1097,7 @@ class Attention(MegatronModule, ABC):
         x_dtype = x.dtype
         gate = gate.contiguous()
         gate = gate.view(*x.shape)
-        if self.self.attn_xsss_gating:
+        if self.xsss is not None:
             x = x * self.xsss(gate.float())
         else:
             x = x * torch.sigmoid(gate.float())
