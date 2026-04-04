@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 from megatron.core import parallel_state, tensor_parallel
-from megatron.core.activations import squared_relu, XIELU, XSSSLUR2
+from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR
 from megatron.core.dist_checkpointing import ShardedTensor
 from megatron.core.dist_checkpointing.mapping import (
     LocalNonpersistentObject,
@@ -142,8 +142,30 @@ class GroupedMLP(MegatronModule):
         else:
             if self.config.activation_func == XIELU:
                 self.activation_func = XIELU(config=self.config)
+            elif self.config.activation_func == SSSLU:
+                self.activation_func = SSSLU(config=self.config)
+            elif self.config.activation_func == XSSSLU:
+                self.activation_func = XSSSLU(config=self.config)
+            elif self.config.activation_func == SSSGLU:
+                self.activation_func = SSSGLU(config=self.config)
+            elif self.config.activation_func == XSSSGLU:
+                self.activation_func = XSSSGLU(config=self.config)
             elif self.config.activation_func == XSSSLUR2:
                 self.activation_func = XSSSLUR2(config=self.config)
+            elif self.config.activation_func == GXSSSLUR2:
+                self.activation_func = GXSSSLUR2(config=self.config)
+            elif self.config.activation_func == PolyReLU:
+                self.activation_func = PolyReLU(config=self.config)
+            elif self.config.activation_func == PolyNorm:
+                self.activation_func = PolyNorm(config=self.config)
+            elif self.config.activation_func == XSSSLUPR:
+                self.activation_func = XSSSLUPR(config=self.config)
+            elif self.config.activation_func == GXSSSLUPR:
+                self.activation_func = GXSSSLUPR(config=self.config)
+            elif self.config.activation_func == NXPR:
+                self.activation_func = NXPR(config=self.config)
+            elif self.config.activation_func == NGXPR:
+                self.activation_func = NGXPR(config=self.config)
             else:
                 self.activation_func = self.config.activation_func
         self.activation_recompute = (
@@ -604,8 +626,30 @@ class TEGroupedMLP(MegatronModule):
         else:
             if self.config.activation_func == XIELU:
                 self.activation_func = XIELU(config=self.config)
+            elif self.config.activation_func == SSSLU:
+                self.activation_func = SSSLU(config=self.config)
+            elif self.config.activation_func == XSSSLU:
+                self.activation_func = XSSSLU(config=self.config)
+            elif self.config.activation_func == SSSGLU:
+                self.activation_func = SSSGLU(config=self.config)
+            elif self.config.activation_func == XSSSGLU:
+                self.activation_func = XSSSGLU(config=self.config)
             elif self.config.activation_func == XSSSLUR2:
                 self.activation_func = XSSSLUR2(config=self.config)
+            elif self.config.activation_func == GXSSSLUR2:
+                self.activation_func = GXSSSLUR2(config=self.config)
+            elif self.config.activation_func == PolyReLU:
+                self.activation_func = PolyReLU(config=self.config)
+            elif self.config.activation_func == PolyNorm:
+                self.activation_func = PolyNorm(config=self.config)
+            elif self.config.activation_func == XSSSLUPR:
+                self.activation_func = XSSSLUPR(config=self.config)
+            elif self.config.activation_func == GXSSSLUPR:
+                self.activation_func = GXSSSLUPR(config=self.config)
+            elif self.config.activation_func == NXPR:
+                self.activation_func = NXPR(config=self.config)
+            elif self.config.activation_func == NGXPR:
+                self.activation_func = NGXPR(config=self.config)
             else:
                 self.activation_func = self.config.activation_func
 
