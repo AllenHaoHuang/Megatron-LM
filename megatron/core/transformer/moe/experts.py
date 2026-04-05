@@ -130,15 +130,26 @@ class GroupedMLP(MegatronModule):
 
         self.expert_parallel = config.expert_model_parallel_size > 1
         if self.config.gated_linear_unit:
-            if self.config.activation_func not in (F.silu, F.gelu):
-                raise ValueError("Activation function must be silu or gelu when using GroupedMLP.")
-
-            @jit_fuser
-            def glu(x):
-                x = torch.chunk(x, 2, dim=-1)
-                return self.config.activation_func(x[0]) * x[1]
-
-            self.activation_func = glu
+            if self.config.activation_func in (F.silu, F.gelu):
+                @jit_fuser
+                def glu(x):
+                    x = torch.chunk(x, 2, dim=-1)
+                    return self.config.activation_func(x[0]) * x[1]
+                self.activation_func = glu
+            else:
+                if self.config.activation_func == GXSSSLUPR:
+                    self.activation = GXSSSLUPR(config=self.config)
+                elif self.config.activation_func == SSSGLU:
+                    self.activation = SSSGLU(config=self.config)
+                elif self.config.activation_func == XSSSGLU:
+                    self.activation = XSSSGLU(config=self.config)
+                elif self.config.activation_func == NGXPR:
+                    self.activation = NGXPR(config=self.config)
+                @jit_fuser
+                def glu(x):
+                    x = torch.chunk(x, 2, dim=-1)
+                    return self.activation(x[0], x[1])
+                self.activation_func = glu
         else:
             if self.config.activation_func == XIELU:
                 self.activation_func = XIELU(config=self.config)
@@ -146,10 +157,6 @@ class GroupedMLP(MegatronModule):
                 self.activation_func = SSSLU(config=self.config)
             elif self.config.activation_func == XSSSLU:
                 self.activation_func = XSSSLU(config=self.config)
-            elif self.config.activation_func == SSSGLU:
-                self.activation_func = SSSGLU(config=self.config)
-            elif self.config.activation_func == XSSSGLU:
-                self.activation_func = XSSSGLU(config=self.config)
             elif self.config.activation_func == XSSSLUR2:
                 self.activation_func = XSSSLUR2(config=self.config)
             elif self.config.activation_func == GXSSSLUR2:
@@ -160,12 +167,8 @@ class GroupedMLP(MegatronModule):
                 self.activation_func = PolyNorm(config=self.config)
             elif self.config.activation_func == XSSSLUPR:
                 self.activation_func = XSSSLUPR(config=self.config)
-            elif self.config.activation_func == GXSSSLUPR:
-                self.activation_func = GXSSSLUPR(config=self.config)
             elif self.config.activation_func == NXPR:
                 self.activation_func = NXPR(config=self.config)
-            elif self.config.activation_func == NGXPR:
-                self.activation_func = NGXPR(config=self.config)
             else:
                 self.activation_func = self.config.activation_func
         self.activation_recompute = (
@@ -789,15 +792,22 @@ class TEGroupedMLP(MegatronModule):
                 )
             else:
                 if self.config.gated_linear_unit:
-
-                    def glu(x):
-                        x_glu, x_linear = torch.chunk(x, 2, dim=-1)
-                        if (val := self.config.activation_func_clamp_value) is not None:
-                            x_glu = x_glu.clamp(min=None, max=val)
-                            x_linear = x_linear.clamp(min=-val, max=val)
-                        return self.config.activation_func(x_glu) * (
-                            x_linear + self.config.glu_linear_offset
-                        )
+                    if self.config.activation_func in (F.silu, F.gelu):
+                        def glu(x):
+                            x_glu, x_linear = torch.chunk(x, 2, dim=-1)
+                            if (val := self.config.activation_func_clamp_value) is not None:
+                                x_glu = x_glu.clamp(min=None, max=val)
+                                x_linear = x_linear.clamp(min=-val, max=val)
+                            return self.config.activation_func(x_glu) * (
+                                x_linear + self.config.glu_linear_offset
+                            )
+                    else:
+                        def glu(x):
+                            x_glu, x_linear = torch.chunk(x, 2, dim=-1)
+                            if (val := self.config.activation_func_clamp_value) is not None:
+                                x_glu = x_glu.clamp(min=None, max=val)
+                                x_linear = x_linear.clamp(min=-val, max=val)
+                            return self.activation_func(x_glu, x_linear + self.config.glu_linear_offset)
 
                     intermediate_parallel = glu(intermediate_parallel)
                 else:
