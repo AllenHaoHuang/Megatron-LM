@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 from megatron.core import parallel_state, tensor_parallel
-from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR
+from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR, squared_relu
 from megatron.core.dist_checkpointing import ShardedTensor
 from megatron.core.dist_checkpointing.mapping import (
     LocalNonpersistentObject,
