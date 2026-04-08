@@ -21,13 +21,13 @@ class XIELU(MegatronModule):
         self.config = config
         self.alpha_p = nn.Parameter(torch.tensor(alpha_p_init).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = beta
+        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
         self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x):
         alpha_p = torch.abs(self.alpha_p)
-        alpha_n = self.beta + torch.abs(self.alpha_n)
-        return compiled_xielu(x, alpha_p, alpha_n, self.beta, self.eps)
+        alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
+        return compiled_xielu(x, alpha_p, alpha_n, torch.abs(self.beta), self.eps)
 
 
 @jit_fuser
@@ -43,13 +43,13 @@ class XSSSLUR2(MegatronModule):
         self.config = config
         self.alpha_p = nn.Parameter(torch.tensor(alpha_p_init).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = beta
+        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
         self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x):
         alpha_p = torch.abs(self.alpha_p)
-        alpha_n = self.beta + torch.abs(self.alpha_n)
-        return compiled_xssslur2(x, alpha_p, alpha_n, self.beta, self.eps)
+        alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
+        return compiled_xssslur2(x, alpha_p, alpha_n, torch.abs(self.beta), self.eps)
 
 
 @jit_fuser
@@ -66,14 +66,14 @@ class XSSSLUPR(MegatronModule):
         self.alpha_p1 = nn.Parameter(torch.tensor(0.8).unsqueeze(0))
         self.alpha_p2 = nn.Parameter(torch.tensor(0.4).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = beta
+        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
         self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x):
         alpha_p1 = torch.abs(self.alpha_p1)
         alpha_p2 = torch.abs(self.alpha_p2)
-        alpha_n = self.beta + torch.abs(self.alpha_n)
-        return compiled_xssslupr(x, alpha_p1, alpha_p2, alpha_n, self.beta, self.eps)
+        alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
+        return compiled_xssslupr(x, alpha_p1, alpha_p2, alpha_n, torch.abs(self.beta), self.eps)
 
 
 @jit_fuser
@@ -92,15 +92,15 @@ class NXPR(MegatronModule):
         self.alpha_p1 = nn.Parameter(torch.tensor(0.8).unsqueeze(0))
         self.alpha_p2 = nn.Parameter(torch.tensor(0.4).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = beta
+        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
         self.eps = torch.tensor(eps, device='cuda')
         self.act1_scale = nn.Parameter(torch.ones(1))
 
     def forward(self, x):
         alpha_p1 = torch.abs(self.alpha_p1)
         alpha_p2 = torch.abs(self.alpha_p2)
-        alpha_n = self.beta + torch.abs(self.alpha_n)
-        return compiled_nxpr(x, alpha_p1, alpha_p2, alpha_n, self.beta, self.eps) * self.act1_scale
+        alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
+        return compiled_nxpr(x, alpha_p1, alpha_p2, alpha_n, torch.abs(self.beta), self.eps) * self.act1_scale
 
 
 @jit_fuser
@@ -116,13 +116,13 @@ class GXSSSLUR2(MegatronModule):
         self.config = config
         self.alpha_p = nn.Parameter(torch.tensor(alpha_p_init).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = beta
+        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
         self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x, y):
         alpha_p = torch.abs(self.alpha_p)
-        alpha_n = self.beta + torch.abs(self.alpha_n)
-        return compiled_gxssslur2(x, y, alpha_p, alpha_n, self.beta, self.eps)
+        alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
+        return compiled_gxssslur2(x, y, alpha_p, alpha_n, torch.abs(self.beta), self.eps)
 
 
 @jit_fuser
@@ -139,14 +139,14 @@ class GXSSSLUPR(MegatronModule):
         self.alpha_p1 = nn.Parameter(torch.tensor(0.8).unsqueeze(0))
         self.alpha_p2 = nn.Parameter(torch.tensor(0.4).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = beta
+        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
         self.eps = torch.tensor(eps, device='cuda')
 
     def forward(self, x, y):
         alpha_p1 = torch.abs(self.alpha_p1)
         alpha_p2 = torch.abs(self.alpha_p2)
-        alpha_n = self.beta + torch.abs(self.alpha_n)
-        return compiled_gxssslupr(x, y, alpha_p1, alpha_p2, alpha_n, self.beta, self.eps)
+        alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
+        return compiled_gxssslupr(x, y, alpha_p1, alpha_p2, alpha_n, torch.abs(self.beta), self.eps)
 
 
 @jit_fuser
@@ -165,15 +165,15 @@ class NGXPR(MegatronModule):
         self.alpha_p1 = nn.Parameter(torch.tensor(0.8).unsqueeze(0))
         self.alpha_p2 = nn.Parameter(torch.tensor(0.4).unsqueeze(0))
         self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = beta
+        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
         self.eps = torch.tensor(eps, device='cuda')
         self.act1_scale = nn.Parameter(torch.ones(1))
 
     def forward(self, x, y):
         alpha_p1 = torch.abs(self.alpha_p1)
         alpha_p2 = torch.abs(self.alpha_p2)
-        alpha_n = self.beta + torch.abs(self.alpha_n)
-        return compiled_ngxpr(x, y, alpha_p1, alpha_p2, alpha_n, self.beta, self.eps) * self.act1_scale
+        alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
+        return compiled_ngxpr(x, y, alpha_p1, alpha_p2, alpha_n, torch.abs(self.beta), self.eps) * self.act1_scale
 
 
 @jit_fuser
