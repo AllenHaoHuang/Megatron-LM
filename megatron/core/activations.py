@@ -235,9 +235,8 @@ class PolyNorm2(MegatronModule):
 def compiled_polynorm3(x, y, alpha_p1, alpha_p2, alpha_p3, alpha_p4, alpha_p5, alpha_p6, alpha_p7, alpha_p8, alpha_p9, eps=1e-6):
     def norm(x):
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
-    return alpha_p1 * norm(x) + alpha_p2 * norm(y) + alpha_p3 * norm(x * y) + alpha_p4 * norm(x * x) + alpha_p5 * norm(y * y) + alpha_p6 * norm(x * x * x) + alpha_p7 * norm(x * x * y) + alpha_p8 * norm(x * y * y)
- + alpha_p9 * norm(y * y * y)
-
+    return alpha_p1 * norm(x) + alpha_p2 * norm(y) + alpha_p3 * norm(x * y) + alpha_p4 * norm(x * x) + alpha_p5 * norm(y * y) + alpha_p6 * norm(x * x * x) + alpha_p7 * norm(x * x * y) + alpha_p8 * norm(x * y * y) + alpha_p9 * norm(y * y * y)
+    
 class PolyNorm3(MegatronModule):
     def __init__(self, config=None, alpha_init=0.1111, eps=1e-6):
         super().__init__(config=config)
