@@ -32,7 +32,7 @@ from megatron.core.utils import (
     is_te_min_version,
     is_torch_min_version,
 )
-from megatron.core.activations import squared_relu, XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR
+from megatron.core.activations import squared_relu, XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR, PolyNorm1, PolyNorm2
 
 from megatron.core.fusions.fused_bias_geglu import quick_gelu
 from megatron.training.utils import (
@@ -1393,7 +1393,7 @@ def core_transformer_config_from_args(args, config_class=None):
 
     activation_flags = [args.relu, args.ssslu, args.silu, args.xssslu, args.squared_relu, args.xielu, args.swiglu,
                         args.sssglu, args.xsssglu, args.xssslur2, args.gxssslur2, \
-                        args.polyrelu, args.polynorm, args.xssslupr, args.gxssslupr, args.nxpr, args.ngxpr]
+                        args.polyrelu, args.polynorm, args.xssslupr, args.gxssslupr, args.nxpr, args.ngxpr, args.polynorm1, args.polynorm2]
     if sum(activation_flags) > 1:
         raise ValueError("Only one activation function can be selected at a time")
     if args.swiglu:
@@ -1421,6 +1421,14 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['activation_func'] = PolyReLU
     elif args.polynorm:
         kw_args['activation_func'] = PolyNorm
+    elif args.polynorm1:
+        kw_args['activation_func'] = PolyNorm1
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+    elif args.polynorm2:
+        kw_args['activation_func'] = PolyNorm2
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
     elif args.xssslupr:
         kw_args['activation_func'] = XSSSLUPR
     elif args.nxpr:
@@ -1892,6 +1900,10 @@ def _add_network_size_args(parser):
     group.add_argument('--polyrelu', action='store_true',
                        help='Use PolyReLU activation')
     group.add_argument('--polynorm', action='store_true',
+                       help='Use PolyNorm activation')
+    group.add_argument('--polynorm1', action='store_true',
+                       help='Use PolyNorm activation')
+    group.add_argument('--polynorm2', action='store_true',
                        help='Use PolyNorm activation')
     group.add_argument('--xssslupr', action='store_true',
                        help='Use xSSSLUPR activation')
