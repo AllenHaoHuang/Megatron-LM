@@ -650,8 +650,8 @@ class TEGroupedMLP(MegatronModule):
             elif self.config.activation_func == PolyNorm:
                 self.activation_func = PolyNorm(config=self.config)
             elif self.config.activation_func == PolyNorm1:
-                self.activation_func = PolyNorm2(config=self.config)
-            elif self.config.activation_func == PolyNorm1:
+                self.activation_func = PolyNorm1(config=self.config)
+            elif self.config.activation_func == PolyNorm2:
                 self.activation_func = PolyNorm2(config=self.config)
             elif self.config.activation_func == XSSSLUPR:
                 self.activation_func = XSSSLUPR(config=self.config)
