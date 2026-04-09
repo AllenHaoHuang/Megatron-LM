@@ -26,7 +26,7 @@ from megatron.core.fusions.fused_bias_swiglu import bias_swiglu_impl, weighted_b
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR
+from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR, PolyNorm1, PolyNorm2
 
 from megatron.core.utils import (
     get_tensor_model_parallel_group_if_none,
@@ -152,6 +152,10 @@ class MLP(MegatronModule):
                 self.activation_func = PolyReLU(config=self.config)
             elif self.config.activation_func == PolyNorm:
                 self.activation_func = PolyNorm(config=self.config)
+            elif self.config.activation_func == PolyNorm1:
+                self.activation_func = PolyNorm1(config=self.config)
+            elif self.config.activation_func == PolyNorm2:
+                self.activation_func = PolyNorm2(config=self.config)
             elif self.config.activation_func == XSSSLUPR:
                 self.activation_func = XSSSLUPR(config=self.config)
             elif self.config.activation_func == GXSSSLUPR:
