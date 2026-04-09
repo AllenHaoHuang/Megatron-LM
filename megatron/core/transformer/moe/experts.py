@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 from megatron.core import parallel_state, tensor_parallel
-from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR, squared_relu
+from megatron.core.activations import XIELU, XSSSLUR2, SSSLU, XSSSLU, SSSGLU, XSSSGLU, GXSSSLUR2, PolyReLU, PolyNorm, XSSSLUPR, GXSSSLUPR, NXPR, NGXPR, squared_relu, PolyNorm1, PolyNorm2
 from megatron.core.dist_checkpointing import ShardedTensor
 from megatron.core.dist_checkpointing.mapping import (
     LocalNonpersistentObject,
@@ -145,6 +145,10 @@ class GroupedMLP(MegatronModule):
                     self.activation = XSSSGLU(config=self.config)
                 elif self.config.activation_func == NGXPR:
                     self.activation = NGXPR(config=self.config)
+                elif self.config.activation_func == PolyNorm1:
+                    self.activation_func = PolyNorm1(config=self.config)
+                elif self.config.activation_func == PolyNorm2:
+                    self.activation_func = PolyNorm2(config=self.config)
                 @jit_fuser
                 def glu(x):
                     x = torch.chunk(x, 2, dim=-1)
