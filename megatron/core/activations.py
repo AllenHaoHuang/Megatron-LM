@@ -213,6 +213,50 @@ class PolyNorm(MegatronModule):
 
 
 @jit_fuser
+def compiled_polynorm2(x, y, alpha_p1, alpha_p2, alpha_p3, eps=1e-6):
+    def norm(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
+    return alpha_p1 * norm(y) + alpha_p2 * norm(x * y) + alpha_p3 * norm(x * x * y)
+
+
+class PolyNorm2(MegatronModule):
+    def __init__(self, config=None, alpha_init=0.33, eps=1e-6):
+        super().__init__(config=config)
+        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.eps = eps
+
+    def forward(self, x, y):
+        return compiled_polynorm2(x, y, self.alpha_p1, self.alpha_p2, self.alpha_p3, self.eps)
+
+
+@jit_fuser
+def compiled_polynorm3(x, y, alpha_p1, alpha_p2, alpha_p3, alpha_p4, alpha_p5, alpha_p6, alpha_p7, alpha_p8, alpha_p9, eps=1e-6):
+    def norm(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
+    return alpha_p1 * norm(x) + alpha_p2 * norm(y) + alpha_p3 * norm(x * y) + alpha_p4 * norm(x * x) + alpha_p5 * norm(y * y) + alpha_p6 * norm(x * x * x) + alpha_p7 * norm(x * x * y) + alpha_p8 * norm(x * y * y)
+ + alpha_p9 * norm(y * y * y)
+
+class PolyNorm3(MegatronModule):
+    def __init__(self, config=None, alpha_init=0.1111, eps=1e-6):
+        super().__init__(config=config)
+        self.alpha_p1 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p2 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p3 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p4 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p5 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p6 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p7 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p8 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.alpha_p9 = nn.Parameter(torch.tensor(alpha_init).unsqueeze(0))
+        self.eps = eps
+
+    def forward(self, x, y):
+        return compiled_polynorm3(x, y, self.alpha_p1, self.alpha_p2, self.alpha_p3, self.alpha_p4, self.alpha_p5, self.alpha_p6, self.alpha_p7, self.alpha_p8, self.alpha_p9, self.eps)
+
+
+@jit_fuser
 def sss(x):
     return 0.5 * (torch.nn.functional.softsign(x) + 1)
 
