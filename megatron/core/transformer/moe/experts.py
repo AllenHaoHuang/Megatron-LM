@@ -897,16 +897,16 @@ class TEGroupedMLP(MegatronModule):
                 replace_prefix_for_sharding(sub_sd, f'{name}.', f'{prefix}experts.{name}.')
             sharded_state_dict.update({f"{prefix}{k}": v for k, v in sub_sd.items()})
 
-            if hasattr(self, 'activation_func') and hasattr(self.activation_func, 'alpha_offset'):
-                alpha = self.activation_func.alpha_offset
-                sharded_state_dict[f'{prefix}activation_func.alpha_offset'] = \
-                    ShardedTensor.from_rank_offsets(
-                        f'{prefix}activation_func.alpha_offset',
-                        alpha,
-                        *sharded_offsets,
-                        (len(sharded_offsets), self.ep_group.rank(), self.ep_group.size()),
-                        replica_id=(0, self.tp_group.rank(), self.dp_group.rank())
-                    )
+        if hasattr(self, 'activation_func') and hasattr(self.activation_func, 'alpha_offset'):
+            alpha = self.activation_func.alpha_offset
+            sharded_state_dict[f'{prefix}activation_func.alpha_offset'] = \
+                ShardedTensor.from_rank_offsets(
+                    f'{prefix}activation_func.alpha_offset',
+                    alpha,
+                    *sharded_offsets,
+                    (len(sharded_offsets), self.ep_group.rank(), self.ep_group.size()),
+                    replica_id=(0, self.tp_group.rank(), self.dp_group.rank())
+                )
         
         return sharded_state_dict
 
