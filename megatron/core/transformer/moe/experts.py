@@ -138,7 +138,7 @@ class GroupedMLP(MegatronModule):
                 self.activation_func = glu
             else:
                 if self.config.activation_func == GXSSSLUPR:
-                    self.activation = GXSSSLUPR(config=self.config)
+                    self.activation = GXSSSLUPR(num_local_experts=self.num_local_experts, config=self.config)
                 elif self.config.activation_func == SSSGLU:
                     self.activation = SSSGLU(config=self.config)
                 elif self.config.activation_func == XSSSGLU:
@@ -170,7 +170,7 @@ class GroupedMLP(MegatronModule):
             elif self.config.activation_func == PolyNorm:
                 self.activation_func = PolyNorm(config=self.config)
             elif self.config.activation_func == XSSSLUPR:
-                self.activation_func = XSSSLUPR(config=self.config)
+                self.activation_func = XSSSLUPR(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == NXPR:
                 self.activation_func = NXPR(config=self.config)
             else:
@@ -665,9 +665,9 @@ class TEGroupedMLP(MegatronModule):
             elif self.config.activation_func == PolyNorm2:
                 self.activation_func = PolyNorm2(config=self.config)
             elif self.config.activation_func == XSSSLUPR:
-                self.activation_func = XSSSLUPR(config=self.config)
+                self.activation_func = XSSSLUPR(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == GXSSSLUPR:
-                self.activation_func = GXSSSLUPR(config=self.config)
+                self.activation_func = GXSSSLUPR(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == NXPR:
                 self.activation_func = NXPR(config=self.config)
             elif self.config.activation_func == NGXPR:
