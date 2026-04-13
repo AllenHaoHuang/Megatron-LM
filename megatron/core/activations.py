@@ -329,36 +329,21 @@ def xsssglu(x, y, alpha_per_token):
     return (alpha_per_token * torch.nn.functional.softsign(x) + 0.5) * x * y
 
 class XSSSGLU(MegatronModule):
-    def __init__(self, num_local_experts: Optional[int] = None, config=None, alpha_init=0.8):
+    def __init__(self, num_local_experts: int = 1, config=None, alpha_init=0.8):
         super().__init__(config=config)
-        self.config = config
         self.num_local_experts = num_local_experts
-
-        if num_local_experts is not None:
-            # MoE mode: one alpha per local expert
-            self.alpha_offset = nn.Parameter(
-                torch.full((num_local_experts,), alpha_init - 0.5)
-            )
-        else:
-            # Non‑MoE mode: single scalar alpha
-            self.alpha_offset = nn.Parameter(torch.tensor(alpha_init - 0.5))
+        self.alpha_offset = nn.Parameter(torch.full((num_local_experts,), alpha_init - 0.5))
 
     def forward(self, x, y, tokens_per_expert=None):
-        # Compute alpha values (always positive)
-        alpha = 0.5 + torch.abs(self.alpha_offset)   # shape (N,) or scalar
-
-        if tokens_per_expert is None or self.num_local_experts is None:
-            # Non‑MoE case: same alpha for all tokens (scalar broadcast)
-            alpha_per_token = alpha
+        alpha_experts = 0.5 + torch.abs(self.alpha_offset)  # shape (num_local_experts,)
+        if tokens_per_expert is None or self.num_local_experts == 1:
+            alpha_per_token = alpha_experts  # scalar or (1,) broadcasts
         else:
-            # MoE case: expand per‑expert alphas to per‑token
             if isinstance(tokens_per_expert, torch.Tensor):
                 tokens_per_expert = tokens_per_expert.tolist()
             alpha_per_token = torch.repeat_interleave(
-                alpha, torch.tensor(tokens_per_expert, device=x.device)
-            )
-            alpha_per_token = alpha_per_token.unsqueeze(-1)   # (total_tokens, 1)
-
+                alpha_experts, torch.tensor(tokens_per_expert, device=x.device)
+            ).unsqueeze(-1)
         return xsssglu(x, y, alpha_per_token)
 
 
