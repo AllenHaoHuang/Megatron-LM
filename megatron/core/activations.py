@@ -330,7 +330,7 @@ def xsssglu(x, y, alpha_per_token):
     return (alpha_per_token * torch.nn.functional.softsign(x) + 0.5) * x * y
 
 class XSSSGLU(MegatronModule):
-    def __init__(self, num_local_experts: int, config=None, alpha_init=0.8):
+    def __init__(self, config=None, num_local_experts=None, alpha_init=0.8):
         super().__init__(config=config)
         self.config = config
         self.num_local_experts = num_local_experts
