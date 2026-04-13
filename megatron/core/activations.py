@@ -60,20 +60,40 @@ def compiled_xssslupr(x, alpha_p1, alpha_p2, alpha_n, beta=0.5, eps=-1e-6):
 
 
 class XSSSLUPR(MegatronModule):
-    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
+    def __init__(self, num_local_experts: int = 1, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
         super().__init__(config=config)
-        self.config = config
-        self.alpha_p1 = nn.Parameter(torch.tensor(0.8).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.tensor(0.4).unsqueeze(0))
-        self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
+        self.num_local_experts = num_local_experts
+        # Create vectors of length num_local_experts (or scalar if 1)
+        self.alpha_p1 = nn.Parameter(torch.full((num_local_experts,), alpha_p_init))
+        self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.4))
+        self.alpha_n = nn.Parameter(torch.full((num_local_experts,), alpha_n_init - beta))
+        self.beta = nn.Parameter(torch.full((num_local_experts,), beta))
         self.eps = torch.tensor(eps, device='cuda')
 
-    def forward(self, x):
-        alpha_p1 = torch.abs(self.alpha_p1)
+    def forward(self, x, tokens_per_expert=None):
+        # Compute per‑expert parameters (positive)
+        alpha_p1 = torch.abs(self.alpha_p1)          # (num_local_experts,)
         alpha_p2 = torch.abs(self.alpha_p2)
         alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
-        return compiled_xssslupr(x, alpha_p1, alpha_p2, alpha_n, torch.abs(self.beta), self.eps)
+        beta = torch.abs(self.beta)
+
+        if tokens_per_expert is None or self.num_local_experts == 1:
+            # Broadcast scalar or (1,) to all tokens
+            alpha_p1_t = alpha_p1
+            alpha_p2_t = alpha_p2
+            alpha_n_t = alpha_n
+            beta_t = beta
+        else:
+            # Expand to per‑token values
+            if isinstance(tokens_per_expert, torch.Tensor):
+                tokens_per_expert = tokens_per_expert.tolist()
+            tpe_tensor = torch.tensor(tokens_per_expert, device=x.device)
+            alpha_p1_t = torch.repeat_interleave(alpha_p1, tpe_tensor).unsqueeze(-1)
+            alpha_p2_t = torch.repeat_interleave(alpha_p2, tpe_tensor).unsqueeze(-1)
+            alpha_n_t = torch.repeat_interleave(alpha_n, tpe_tensor).unsqueeze(-1)
+            beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
+
+        return compiled_xssslupr(x, alpha_p1_t, alpha_p2_t, alpha_n_t, beta_t, self.eps)
 
 
 @jit_fuser
@@ -125,28 +145,37 @@ class GXSSSLUR2(MegatronModule):
         return compiled_gxssslur2(x, y, alpha_p, alpha_n, torch.abs(self.beta), self.eps)
 
 
-@jit_fuser
-def compiled_gxssslupr(x, y, alpha_p1, alpha_p2, alpha_n, beta=0.5, eps=-1e-6):
-    return torch.where(x > 0,
-                      alpha_p2 * x * x * y + alpha_p1 * x * y + beta * y,
-                      alpha_n * y * torch.nn.functional.softsign(x) + beta * y)
-
-
 class GXSSSLUPR(MegatronModule):
-    def __init__(self, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
+    def __init__(self, num_local_experts: int = 1, config=None, alpha_p_init=0.8, alpha_n_init=0.8, beta=0.5, eps=-1e-6):
         super().__init__(config=config)
-        self.config = config
-        self.alpha_p1 = nn.Parameter(torch.tensor(0.8).unsqueeze(0))
-        self.alpha_p2 = nn.Parameter(torch.tensor(0.4).unsqueeze(0))
-        self.alpha_n = nn.Parameter(torch.tensor(alpha_n_init - beta).unsqueeze(0))
-        self.beta = nn.Parameter(torch.tensor(beta).unsqueeze(0))
+        self.num_local_experts = num_local_experts
+        self.alpha_p1 = nn.Parameter(torch.full((num_local_experts,), alpha_p_init))
+        self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.4))
+        self.alpha_n = nn.Parameter(torch.full((num_local_experts,), alpha_n_init - beta))
+        self.beta = nn.Parameter(torch.full((num_local_experts,), beta))
         self.eps = torch.tensor(eps, device='cuda')
 
-    def forward(self, x, y):
+    def forward(self, x, y, tokens_per_expert=None):
         alpha_p1 = torch.abs(self.alpha_p1)
         alpha_p2 = torch.abs(self.alpha_p2)
         alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
-        return compiled_gxssslupr(x, y, alpha_p1, alpha_p2, alpha_n, torch.abs(self.beta), self.eps)
+        beta = torch.abs(self.beta)
+
+        if tokens_per_expert is None or self.num_local_experts == 1:
+            alpha_p1_t = alpha_p1
+            alpha_p2_t = alpha_p2
+            alpha_n_t = alpha_n
+            beta_t = beta
+        else:
+            if isinstance(tokens_per_expert, torch.Tensor):
+                tokens_per_expert = tokens_per_expert.tolist()
+            tpe_tensor = torch.tensor(tokens_per_expert, device=x.device)
+            alpha_p1_t = torch.repeat_interleave(alpha_p1, tpe_tensor).unsqueeze(-1)
+            alpha_p2_t = torch.repeat_interleave(alpha_p2, tpe_tensor).unsqueeze(-1)
+            alpha_n_t = torch.repeat_interleave(alpha_n, tpe_tensor).unsqueeze(-1)
+            beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
+
+        return compiled_gxssslupr(x, y, alpha_p1_t, alpha_p2_t, alpha_n_t, beta_t, self.eps)
 
 
 @jit_fuser
