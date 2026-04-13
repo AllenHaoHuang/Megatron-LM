@@ -830,7 +830,7 @@ class TEGroupedMLP(MegatronModule):
 
                     intermediate_parallel = glu(intermediate_parallel, tokens_per_expert)
                 else:
-                    intermediate_parallel = self.activation_func(intermediate_parallel)
+                    intermediate_parallel = self.activation_func(intermediate_parallel, tokens_per_expert)
                 original_dtype = intermediate_parallel.dtype
                 intermediate_parallel = intermediate_parallel * permuted_probs
                 intermediate_parallel = intermediate_parallel.to(original_dtype)
