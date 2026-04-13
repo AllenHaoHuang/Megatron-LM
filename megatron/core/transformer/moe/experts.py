@@ -651,7 +651,7 @@ class TEGroupedMLP(MegatronModule):
             elif self.config.activation_func == SSSGLU:
                 self.activation_func = SSSGLU(config=self.config)
             elif self.config.activation_func == XSSSGLU:
-                self.activation = XSSSGLU(num_local_experts=self.num_local_experts, config=self.config)
+                self.activation_func = XSSSGLU(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == XSSSLUR2:
                 self.activation_func = XSSSLUR2(config=self.config)
             elif self.config.activation_func == GXSSSLUR2:
