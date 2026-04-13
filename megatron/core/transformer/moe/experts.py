@@ -142,7 +142,7 @@ class GroupedMLP(MegatronModule):
                 elif self.config.activation_func == SSSGLU:
                     self.activation = SSSGLU(config=self.config)
                 elif self.config.activation_func == XSSSGLU:
-                    self.activation = XSSSGLU(config=self.config)
+                    self.activation = XSSSGLU(num_local_experts=self.num_local_experts, config=self.config)
                 elif self.config.activation_func == NGXPR:
                     self.activation = NGXPR(config=self.config)
                 elif self.config.activation_func == PolyNorm1:
@@ -150,9 +150,9 @@ class GroupedMLP(MegatronModule):
                 elif self.config.activation_func == PolyNorm2:
                     self.activation_func = PolyNorm2(config=self.config)
                 @jit_fuser
-                def glu(x):
+                def glu(x, tokens_per_expert):
                     x = torch.chunk(x, 2, dim=-1)
-                    return self.activation(x[0], x[1])
+                    return self.activation(x[0], x[1], tokens_per_expert)
                 self.activation_func = glu
         else:
             if self.config.activation_func == XIELU:
@@ -185,9 +185,9 @@ class GroupedMLP(MegatronModule):
             )
 
         @jit_fuser
-        def activation_func_with_probs(x, probs):
+        def activation_func_with_probs(x, probs, tokens_per_expert):
             dtype = x.dtype
-            res = self.activation_func(x) * probs
+            res = self.activation_func(x, tokens_per_expert) * probs
             return res.to(dtype)
 
         self.activation_func_with_probs = activation_func_with_probs
@@ -324,13 +324,13 @@ class GroupedMLP(MegatronModule):
             )
             if self.activation_recompute:
                 intermediate_parallel = self.activation_checkpoint.checkpoint(
-                    self.activation_func_with_probs, fc1_output, permuted_probs.unsqueeze(-1)
+                    self.activation_func_with_probs, fc1_output, permuted_probs.unsqueeze(-1), tokens_per_expert
                 )
                 fc2_output = gg.ops.gmm(intermediate_parallel, w2, tokens_per_expert, trans_b=False)
                 self.activation_checkpoint.discard_output_and_register_recompute(fc2_output)
             else:
                 intermediate_parallel = self.activation_func_with_probs(
-                    fc1_output, permuted_probs.unsqueeze(-1)
+                    fc1_output, permuted_probs.unsqueeze(-1), tokens_per_expert
                 )
                 fc2_output = gg.ops.gmm(intermediate_parallel, w2, tokens_per_expert, trans_b=False)
         else:
@@ -343,12 +343,12 @@ class GroupedMLP(MegatronModule):
             h = torch.matmul(permuted_local_hidden_states, w1)
             if self.activation_recompute:
                 h = self.activation_checkpoint.checkpoint(
-                    self.activation_func_with_probs, h, permuted_probs.unsqueeze(-1)
+                    self.activation_func_with_probs, h, permuted_probs.unsqueeze(-1), tokens_per_expert
                 )
                 fc2_output = torch.matmul(h, w2)
                 self.activation_checkpoint.discard_output_and_register_recompute(fc2_output)
             else:
-                h = self.activation_func_with_probs(h, permuted_probs.unsqueeze(-1))
+                h = self.activation_func_with_probs(h, permuted_probs.unsqueeze(-1), tokens_per_expert)
                 fc2_output = torch.matmul(h, w2)
 
         return fc2_output, None
@@ -576,6 +576,17 @@ class GroupedMLP(MegatronModule):
                     )
                 )
 
+        if hasattr(self, 'activation_func') and hasattr(self.activation_func, 'alpha_offset'):
+                alpha = self.activation_func.alpha_offset
+                sharded_state_dict[f'{prefix}activation_func.alpha_offset'] = \
+                    ShardedTensor.from_rank_offsets(
+                        f'{prefix}activation_func.alpha_offset',
+                        alpha,
+                        *sharded_offsets,
+                        (len(sharded_offsets), self.ep_group.rank(), self.ep_group.size()),
+                        replica_id=(0, self.tp_group.rank(), self.dp_group.rank())
+                    )
+
         return sharded_state_dict
 
     def backward_dw(self):
@@ -640,7 +651,7 @@ class TEGroupedMLP(MegatronModule):
             elif self.config.activation_func == SSSGLU:
                 self.activation_func = SSSGLU(config=self.config)
             elif self.config.activation_func == XSSSGLU:
-                self.activation_func = XSSSGLU(config=self.config)
+                self.activation = XSSSGLU(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == XSSSLUR2:
                 self.activation_func = XSSSLUR2(config=self.config)
             elif self.config.activation_func == GXSSSLUR2:
@@ -760,7 +771,7 @@ class TEGroupedMLP(MegatronModule):
             permuted_local_hidden_states, tokens_per_expert
         )
 
-        def bias_act_func(intermediate_parallel, bias_parallel, permuted_probs):
+        def bias_act_func(intermediate_parallel, bias_parallel, permuted_probs, tokens_per_expert):
             if self.config.use_te_activation_func:
                 if bias_parallel is not None:
                     intermediate_parallel = intermediate_parallel + bias_parallel
@@ -810,14 +821,14 @@ class TEGroupedMLP(MegatronModule):
                                 x_linear + self.config.glu_linear_offset
                             )
                     else:
-                        def glu(x):
+                        def glu(x, tpe):
                             x_glu, x_linear = torch.chunk(x, 2, dim=-1)
                             if (val := self.config.activation_func_clamp_value) is not None:
                                 x_glu = x_glu.clamp(min=None, max=val)
                                 x_linear = x_linear.clamp(min=-val, max=val)
-                            return self.activation_func(x_glu, x_linear + self.config.glu_linear_offset)
+                            return self.activation_func(x_glu, x_linear + self.config.glu_linear_offset, tpe)
 
-                    intermediate_parallel = glu(intermediate_parallel)
+                    intermediate_parallel = glu(intermediate_parallel, tokens_per_expert)
                 else:
                     intermediate_parallel = self.activation_func(intermediate_parallel)
                 original_dtype = intermediate_parallel.dtype
@@ -828,13 +839,13 @@ class TEGroupedMLP(MegatronModule):
         if self.activation_recompute:
             self.activation_checkpoint = tensor_parallel.CheckpointWithoutOutput()
             intermediate_parallel = self.activation_checkpoint.checkpoint(
-                bias_act_func, intermediate_parallel, bias_parallel, permuted_probs
+                bias_act_func, intermediate_parallel, bias_parallel, permuted_probs, tokens_per_expert
             )
             output, output_bias = self.linear_fc2(intermediate_parallel, tokens_per_expert)
             self.activation_checkpoint.discard_output_and_register_recompute(output)
         else:
             intermediate_parallel = bias_act_func(
-                intermediate_parallel, bias_parallel, permuted_probs
+                intermediate_parallel, bias_parallel, permuted_probs, tokens_per_expert
             )
             output, output_bias = self.linear_fc2(intermediate_parallel, tokens_per_expert)
 
@@ -885,6 +896,18 @@ class TEGroupedMLP(MegatronModule):
                 # Add prefix here to match sequential's keys
                 replace_prefix_for_sharding(sub_sd, f'{name}.', f'{prefix}experts.{name}.')
             sharded_state_dict.update({f"{prefix}{k}": v for k, v in sub_sd.items()})
+
+            if hasattr(self, 'activation_func') and hasattr(self.activation_func, 'alpha_offset'):
+                alpha = self.activation_func.alpha_offset
+                sharded_state_dict[f'{prefix}activation_func.alpha_offset'] = \
+                    ShardedTensor.from_rank_offsets(
+                        f'{prefix}activation_func.alpha_offset',
+                        alpha,
+                        *sharded_offsets,
+                        (len(sharded_offsets), self.ep_group.rank(), self.ep_group.size()),
+                        replica_id=(0, self.tp_group.rank(), self.dp_group.rank())
+                    )
+        
         return sharded_state_dict
 
     def backward_dw(self):
