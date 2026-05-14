@@ -125,7 +125,7 @@ try:
     )
 
     has_nvidia_modelopt = True
-except ImportError:
+except Exception:
     has_nvidia_modelopt = False
 
 from megatron.core import mpu, tensor_parallel
