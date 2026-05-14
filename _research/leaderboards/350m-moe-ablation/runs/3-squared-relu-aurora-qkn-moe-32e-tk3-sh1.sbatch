@@ -129,6 +129,7 @@ MEGATRON_ARGS=(
     --cross-entropy-loss-fusion
     --disable-bias-linear
     --no-check-for-nan-in-loss-and-grad
+    --no-gradient-accumulation-fusion
     # Regularization
     --attention-dropout 0.0
     --hidden-dropout 0.0
@@ -184,7 +185,6 @@ MEGATRON_ARGS=(
     --data-cache-path $DATASET_CACHE_DIR
     --split 99,1,0
     --num-workers 4
-    --no-gradient-accumulation-fusion
 )
 
 MEGATRON_ARGS_STR="${MEGATRON_ARGS[@]}"
