@@ -95,7 +95,7 @@ def compiled_polynorm(x, alpha_p1, alpha_p2, alpha_p3, eps=1e-6):
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
     norm_x = norm(x)
     norm_x2 = norm(torch.pow(x, 2))
-    norm_x3 = norm(torch.pow(x, 3))
+    norm_x3 = norm(torch.abs(x) * torch.pow(x, 2))
     return alpha_p1 * norm_x + alpha_p2 * norm_x2 + alpha_p3 * norm_x3
 
 

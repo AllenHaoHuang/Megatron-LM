@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 from megatron.core import tensor_parallel
 from megatron.core.activations import squared_relu, XSSSLUPR, GXSSSLUPR, PolyNorm, PiecewisePolyNorm
-from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict, ShardedTensor
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.extensions.transformer_engine import HAVE_TE
 from megatron.core.fusions.fused_bias_geglu import quick_gelu, weighted_bias_quick_geglu_impl
@@ -176,6 +176,7 @@ class TEGroupedMLP(MegatronModule):
 
         self.ep_group = pg_collection.ep
         self.tp_group = pg_collection.expt_tp
+        self.dp_group = pg_collection.expt_dp if pg_collection else None
 
         # Double the output width with gated linear unit, see https://arxiv.org/pdf/2002.05202.pdf
         ffn_hidden_size = not_none(self.config.moe_ffn_hidden_size)
@@ -199,13 +200,13 @@ class TEGroupedMLP(MegatronModule):
             self.activation_func = apply_module(submodules.activation_func(config=self.config))
         else:
             if self.config.activation_func == XSSSLUPR:
-                self.activation_func = XSSSLUPR(config=self.config)
+                self.activation_func = XSSSLUPR(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == GXSSSLUPR:
-                self.activation_func = GXSSSLUPR(config=self.config)
+                self.activation_func = GXSSSLUPR(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == PolyNorm:
-                self.activation_func = PolyNorm(config=self.config)
+                self.activation_func = PolyNorm(num_local_experts=self.num_local_experts, config=self.config)
             elif self.config.activation_func == PiecewisePolyNorm:
-                self.activation_func = PiecewisePolyNorm(config=self.config)
+                self.activation_func = PiecewisePolyNorm(num_local_experts=self.num_local_experts, config=self.config)
             else:
                 self.activation_func = self.config.activation_func
 
@@ -276,7 +277,7 @@ class TEGroupedMLP(MegatronModule):
             .to(intermediate_parallel.dtype)
         )
 
-    def bias_act_func(self, intermediate_parallel, bias_parallel, permuted_probs):
+    def bias_act_func(self, intermediate_parallel, bias_parallel, permuted_probs, tokens_per_expert):
         """
         Applies bias and activation function to the output of linear_fc1.
         """
@@ -316,18 +317,23 @@ class TEGroupedMLP(MegatronModule):
         else:
             if self.config.gated_linear_unit:
 
-                def glu(x):
+                def glu(x, tokens_per_expert):
                     x_glu, x_linear = torch.chunk(x, 2, dim=-1)
                     if (val := self.config.activation_func_clamp_value) is not None:
                         x_glu = x_glu.clamp(min=None, max=val)
                         x_linear = x_linear.clamp(min=-val, max=val)
-                    return self.activation_func(x_glu) * (
-                        x_linear + self.config.glu_linear_offset
-                    )
+                    if isinstance(self.activation_func, (XSSSLUPR, GXSSSLUPR, PolyNorm, PiecewisePolyNorm)):
+                        activated = self.activation_func(x_glu, tokens_per_expert)
+                    else:
+                        activated = self.activation_func(x_glu)
+                    return activated * (x_linear + self.config.glu_linear_offset)
 
-                intermediate_parallel = glu(intermediate_parallel)
+                intermediate_parallel = glu(intermediate_parallel, tokens_per_expert)
             else:
-                intermediate_parallel = self.activation_func(intermediate_parallel)
+                if isinstance(self.activation_func, (XSSSLUPR, GXSSSLUPR, PolyNorm, PiecewisePolyNorm)):
+                    intermediate_parallel = self.activation_func(intermediate_parallel, tokens_per_expert)
+                else:
+                    intermediate_parallel = self.activation_func(intermediate_parallel)
             original_dtype = intermediate_parallel.dtype
             intermediate_parallel = intermediate_parallel * permuted_probs
             intermediate_parallel = intermediate_parallel.to(original_dtype)
@@ -389,11 +395,11 @@ class TEGroupedMLP(MegatronModule):
             self.activation_checkpoint = tensor_parallel.CheckpointWithoutOutput()
             with off_interface(self.offload_moe_act, fc1_output, "moe_act") as fc1_output:
                 bias_act_output = self.activation_checkpoint.checkpoint(
-                    self.bias_act_func, fc1_output, bias_parallel, permuted_probs
+                    self.bias_act_func, fc1_output, bias_parallel, permuted_probs, tokens_per_expert
                 )
         else:
             with off_interface(self.offload_moe_act, fc1_output, "moe_act") as fc1_output:
-                bias_act_output = self.bias_act_func(fc1_output, bias_parallel, permuted_probs)
+                bias_act_output = self.bias_act_func(fc1_output, bias_parallel, permuted_probs, tokens_per_expert)
         output, output_bias = apply_module(self.linear_fc2)(bias_act_output, tokens_per_expert)
         if self.activation_recompute:
             self.activation_checkpoint.discard_output_and_register_recompute(output)
@@ -426,6 +432,8 @@ class TEGroupedMLP(MegatronModule):
         singleton_local_shards = (metadata or {}).get('singleton_local_shards', False)
         sharded_state_dict = {}
         for name, module in self._modules.items():
+            if name == 'activation_func':
+                continue  # handled separately below with correct EP sharding
             sub_sd = sharded_state_dict_default(
                 module, f'{name}.', sharded_offsets, metadata, tp_group=self.tp_group
             )
@@ -452,6 +460,17 @@ class TEGroupedMLP(MegatronModule):
                 # Add prefix here to match sequential's keys
                 replace_prefix_for_sharding(sub_sd, f'{name}.', f'{prefix}experts.{name}.')
             sharded_state_dict.update({f"{prefix}{k}": v for k, v in sub_sd.items()})
+
+        if isinstance(self.activation_func, torch.nn.Module):
+            for name, param in self.activation_func.named_parameters():
+                sharded_state_dict[f'{prefix}activation_func.{name}'] = \
+                    ShardedTensor.from_rank_offsets(
+                        f'{prefix}activation_func.{name}',
+                        param.data,
+                        *sharded_offsets,
+                        (len(sharded_offsets), self.ep_group.rank(), self.ep_group.size()),
+                        replica_id=(0, self.tp_group.rank(), self.dp_group.rank())
+                    )
         return sharded_state_dict
 
     def backward_dw(self):
