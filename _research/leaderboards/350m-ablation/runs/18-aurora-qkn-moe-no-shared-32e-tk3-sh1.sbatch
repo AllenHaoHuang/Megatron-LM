@@ -26,7 +26,7 @@
 #   git checkout c664f35d2
 #   sbatch _research/leaderboards/350m-ablation/runs/16-aurora-qkn-moe-32e-tk3-sh1.sbatch
 #
-#SBATCH --job-name=350m-abl-aurora-qkn-moe-32e-tk3-sh1
+#SBATCH --job-name=350m-abl-aurora-qkn-moe-no-shared-32e-tk3-sh1
 #SBATCH --time=02:30:00
 #SBATCH --output=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
 #SBATCH --error=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
@@ -66,7 +66,7 @@ MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 MASTER_PORT=25678
 
 PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
-EXP_NAME=350m-abl-swiglu-aurora-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
+EXP_NAME=350m-abl-aurora-qkn-moe-no-shared-32e-tk3-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
 export APERTUS_FEATURE=transformer-pp-aurora-moe-32e-tk3-sh1
@@ -102,9 +102,8 @@ MEGATRON_ARGS=(
     --seq-length 4096
     # MoE: 32 experts, top-4, expert FFN 640 (fine-grained, iso-active to dense)
     --num-experts 32
-    --moe-router-topk 3
+    --moe-router-topk 4
     --moe-ffn-hidden-size 640
-    --moe-shared-expert-intermediate-size 640
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 1e-2
     --moe-z-loss-coeff 1e-3
@@ -184,7 +183,6 @@ MEGATRON_ARGS=(
     --data-cache-path $DATASET_CACHE_DIR
     --split 99,1,0
     --num-workers 4
-    --no-gradient-accumulation-fusion
 )
 
 MEGATRON_ARGS_STR="${MEGATRON_ARGS[@]}"
