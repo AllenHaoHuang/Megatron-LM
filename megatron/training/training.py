@@ -127,7 +127,7 @@ try:
     has_nvidia_modelopt = True
 except Exception:
     has_nvidia_modelopt = False
-git
+
 from megatron.core import mpu, tensor_parallel
 from megatron.core.models.gpt.experimental_attention_variant_module_specs import (
     is_linear_attention_variant,
