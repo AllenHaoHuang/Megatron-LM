@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 
 from megatron.core import tensor_parallel
-from megatron.core.activations import squared_relu
+from megatron.core.activations import squared_relu, XSSSLUPR, GXSSSLUPR, PolyNorm, PiecewisePolyNorm
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.extensions.transformer_engine import HAVE_TE
@@ -198,7 +198,16 @@ class TEGroupedMLP(MegatronModule):
         if self.config.use_te_activation_func and not (submodules.activation_func is None):
             self.activation_func = apply_module(submodules.activation_func(config=self.config))
         else:
-            self.activation_func = self.config.activation_func
+            if self.config.activation_func == XSSSLUPR:
+                self.activation_func = XSSSLUPR(config=self.config)
+            elif self.config.activation_func == GXSSSLUPR:
+                self.activation_func = GXSSSLUPR(config=self.config)
+            elif self.config.activation_func == PolyNorm:
+                self.activation_func = PolyNorm(config=self.config)
+            elif self.config.activation_func == PiecewisePolyNorm:
+                self.activation_func = PiecewisePolyNorm(config=self.config)
+            else:
+                self.activation_func = self.config.activation_func
 
         self.linear_fc2 = submodules.linear_fc2(
             self.num_local_experts,

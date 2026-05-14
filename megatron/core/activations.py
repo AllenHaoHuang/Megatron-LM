@@ -51,10 +51,10 @@ class XSSSLUPR(MegatronModule):
 
 
 @jit_fuser
-def compiled_gxssslupr(x, y, alpha_p2, alpha_p3, alpha_n, beta):
+def compiled_gxssslupr(x, alpha_p2, alpha_p3, alpha_n, beta):
     return torch.where(x > 0,
-                      alpha_p3 * x * x * y + alpha_p2 * x * y + beta * y,
-                      alpha_n * y * torch.nn.functional.softsign(x) + beta * y)
+                      alpha_p3 * x * x + alpha_p2 * x + beta,
+                      alpha_n * torch.nn.functional.softsign(x) + beta)
 
 
 class GXSSSLUPR(MegatronModule):
@@ -87,7 +87,97 @@ class GXSSSLUPR(MegatronModule):
             beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
 
         return compiled_gxssslupr(x, y, alpha_p2_t, alpha_p3_t, alpha_n_t, beta_t)
+
+
+@jit_fuser
+def compiled_polynorm(x, alpha_p1, alpha_p2, alpha_p3, eps=1e-6):
+    def norm(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
+    norm_x = norm(x)
+    norm_x2 = norm(torch.pow(x, 2))
+    norm_x3 = norm(torch.pow(x, 3))
+    return alpha_p1 * norm_x + alpha_p2 * norm_x2 + alpha_p3 * norm_x3
+
+
+class PolyNorm(MegatronModule):
+    def __init__(self, num_local_experts: int = 1, config=None, alpha_init=0.33, eps=1e-6):
+        super().__init__(config=config)
+        self.num_local_experts = num_local_experts
+        # Create vectors of length num_local_experts
+        self.alpha_p1 = nn.Parameter(torch.full((num_local_experts,), alpha_init))
+        self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), alpha_init))
+        self.alpha_p3 = nn.Parameter(torch.full((num_local_experts,), alpha_init))
+        self.eps = eps
+
+    def forward(self, x, tokens_per_expert=None):
+        # Ensure parameters are positive (optional, as in reference)
+        alpha_p1 = torch.abs(self.alpha_p1)   # (num_local_experts,)
+        alpha_p2 = torch.abs(self.alpha_p2)
+        alpha_p3 = torch.abs(self.alpha_p3)
+
+        if tokens_per_expert is None or self.num_local_experts == 1:
+            # Broadcast scalar or (1,) to all tokens
+            alpha_p1_t = alpha_p1
+            alpha_p2_t = alpha_p2
+            alpha_p3_t = alpha_p3
+        else:
+            # Expand to per‑token values
+            if isinstance(tokens_per_expert, torch.Tensor):
+                tokens_per_expert = tokens_per_expert.tolist()
+            tpe_tensor = torch.tensor(tokens_per_expert, device=x.device)
+            alpha_p1_t = torch.repeat_interleave(alpha_p1, tpe_tensor).unsqueeze(-1)
+            alpha_p2_t = torch.repeat_interleave(alpha_p2, tpe_tensor).unsqueeze(-1)
+            alpha_p3_t = torch.repeat_interleave(alpha_p3, tpe_tensor).unsqueeze(-1)
+
+        return compiled_polynorm(x, alpha_p1_t, alpha_p2_t, alpha_p3_t, self.eps)
     
+
+@jit_fuser
+def compiled_piecewise_polynorm(x, alpha_p2, alpha_p3, alpha_n2, beta, eps=1e-6):
+    def norm(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
+    norm_x = norm(x)
+    norm_x2 = norm(torch.pow(x, 2))
+    norm_x3 = norm(torch.pow(x, 3))
+    return beta * norm_x + alpha_p2 * norm_x2 * (x > 0) + alpha_n2 * norm_x2 * (x < 0) + alpha_p3 * norm_x3 * (x > 0)
+
+
+class PiecewisePolyNorm(MegatronModule):
+    def __init__(self, num_local_experts: int = 1, config=None, eps=1e-6):
+        super().__init__(config=config)
+        self.num_local_experts = num_local_experts
+        # Create vectors of length num_local_experts
+        self.beta = nn.Parameter(torch.full((num_local_experts,), 0.5))
+        self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.5))
+        self.alpha_p3 = nn.Parameter(torch.full((num_local_experts,), 0.5))
+        self.alpha_n2 = nn.Parameter(torch.full((num_local_experts,), 0.5))
+        self.eps = eps
+
+    def forward(self, x, tokens_per_expert=None):
+        # Ensure parameters are positive
+        beta = torch.abs(self.beta)   # (num_local_experts,)
+        alpha_p2 = torch.abs(self.alpha_p2)
+        alpha_p3 = torch.abs(self.alpha_p3)
+        alpha_n2 = torch.abs(self.alpha_n2)
+
+        if tokens_per_expert is None or self.num_local_experts == 1:
+            # Broadcast scalar or (1,) to all tokens
+            beta_t = beta
+            alpha_p2_t = alpha_p2
+            alpha_p3_t = alpha_p3
+            alpha_n2_t = alpha_n2
+        else:
+            # Expand to per‑token values
+            if isinstance(tokens_per_expert, torch.Tensor):
+                tokens_per_expert = tokens_per_expert.tolist()
+            tpe_tensor = torch.tensor(tokens_per_expert, device=x.device)
+            beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
+            alpha_p2_t = torch.repeat_interleave(alpha_p2, tpe_tensor).unsqueeze(-1)
+            alpha_p3_t = torch.repeat_interleave(alpha_p3, tpe_tensor).unsqueeze(-1)
+            alpha_n2_t = torch.repeat_interleave(alpha_n2, tpe_tensor).unsqueeze(-1)
+
+        return compiled_piecewise_polynorm(x, alpha_p2_t, alpha_p3_t, alpha_n2_t, beta_t, self.eps)
+
 
 @jit_fuser
 def squared_relu(x: torch.Tensor) -> torch.Tensor:

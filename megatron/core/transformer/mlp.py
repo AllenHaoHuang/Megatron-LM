@@ -32,6 +32,7 @@ from megatron.core.utils import (
     nvtx_range_pop,
     nvtx_range_push,
 )
+from megatron.core.activations import XSSSLUPR, GXSSSLUPR, PolyNorm, PiecewisePolyNorm
 
 try:
     import transformer_engine  # pylint: disable=unused-import
@@ -222,7 +223,16 @@ class MLP(MegatronModule):
         if self.config.use_te_activation_func and not (submodules.activation_func is None):
             self.activation_func = apply_module(submodules.activation_func(config=self.config))
         else:
-            self.activation_func = self.config.activation_func
+            if self.config.activation_func == XSSSLUPR:
+                self.activation_func = XSSSLUPR(config=self.config)
+            elif self.config.activation_func == GXSSSLUPR:
+                self.activation_func = GXSSSLUPR(config=self.config)
+            elif self.config.activation_func == PolyNorm:
+                self.activation_func = PolyNorm(config=self.config)
+            elif self.config.activation_func == PiecewisePolyNorm:
+                self.activation_func = PiecewisePolyNorm(config=self.config)
+            else:
+                self.activation_func = self.config.activation_func
 
         self.linear_fc2 = submodules.linear_fc2(
             not_none(self.config.ffn_hidden_size),

@@ -3,7 +3,7 @@
 Codebase: https://github.com/AllenHaoHuang/megatron-lm-research-baseline/tree/apertus2-ablation
 
 Ablating MoE hyperparameters and activation functions. The baseline is taken from [16-aurora-qkn-moe-32e-tk3-sh1.sbatch](../350m-ablation/runs/16-aurora-qkn-moe-32e-tk3-sh1.sbatch)
-which uses MoE and Aurora optimizer/
+which uses MoE and Aurora optimizer.
 
 | rank | entry                     | change                                                                                                                         | optimizer | matrix LR | final 10 avg |    sbatch | wandb | commit                                                                                  |
 |-----:|---------------------------|--------------------------------------------------------------------------------------------------------------------------------| --- | ---: |-------------:|---:| --- |-----------------------------------------------------------------------------------------|
@@ -21,4 +21,4 @@ which uses MoE and Aurora optimizer/
 
 ## TLDR
 - Shared expert improves performance
-- 
+- SwiGLU and Squared ReLU have similar performance at this scale

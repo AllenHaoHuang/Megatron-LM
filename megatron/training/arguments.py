@@ -29,7 +29,7 @@ from megatron.core.utils import (
     is_te_min_version,
     is_torch_min_version,
 )
-from megatron.core.activations import squared_relu
+from megatron.core.activations import squared_relu, XSSSLUPR, GXSSSLUPR, PolyNorm, PiecewisePolyNorm
 from megatron.core.fusions.fused_bias_geglu import quick_gelu
 from megatron.training.global_vars import set_global_variables
 from megatron.training.utils import (
@@ -1730,6 +1730,16 @@ def core_transformer_config_from_args(args, config_class=None):
         assert not args.swiglu
         kw_args['gated_linear_unit'] = True
         kw_args['activation_func'] = quick_gelu
+    if args.xssslupr:
+        kw_args['activation_func'] = XSSSLUPR
+    if args.gxssslupr:
+        kw_args['activation_func'] = GXSSSLUPR
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_activation_fusion'] = False
+    if args.polynorm:
+        kw_args['activation_func'] = PolyNorm
+    if args.piecewise_polynorm:
+        kw_args['activation_func'] = PiecewisePolyNorm
     if args.init_method_xavier_uniform:
         kw_args['init_method'] = torch.nn.init.xavier_uniform_
         kw_args['scaled_init_method'] = torch.nn.init.xavier_uniform_
@@ -2147,6 +2157,14 @@ def _add_network_size_args(parser):
                        help='Use gated linear units and SiLU activation instead of default gelu')
     group.add_argument('--quick-geglu', action='store_true',
                        help='Use quick geglu activation instead of default gelu')
+    group.add_argument('--xssslupr', action='store_true',
+                       help='Use xssslupr activation instead of default gelu')
+    group.add_argument('--gxssslupr', action='store_true',
+                       help='Use gated linear units and gxssslupr activation instead of default gelu')
+    group.add_argument('--polynorm', action='store_true',
+                       help='Use polynorm activation instead of default gelu')
+    group.add_argument('--piecewise-polynorm', action='store_true',
+                       help='Use piecewise polynorm activation instead of default gelu')
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')
