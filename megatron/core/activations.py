@@ -66,7 +66,7 @@ class GXSSSLUPR(MegatronModule):
         self.alpha_n = nn.Parameter(torch.full((num_local_experts,), 0.8 - 0.5))
         self.beta = nn.Parameter(torch.full((num_local_experts,), 0.5))
 
-    def forward(self, x, y, tokens_per_expert=None):
+    def forward(self, x, tokens_per_expert=None):
         alpha_p2 = torch.abs(self.alpha_p2)
         alpha_p3 = torch.abs(self.alpha_p3)
         alpha_n = torch.abs(self.beta) + torch.abs(self.alpha_n)
@@ -86,7 +86,7 @@ class GXSSSLUPR(MegatronModule):
             alpha_n_t = torch.repeat_interleave(alpha_n, tpe_tensor).unsqueeze(-1)
             beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
 
-        return compiled_gxssslupr(x, y, alpha_p2_t, alpha_p3_t, alpha_n_t, beta_t)
+        return compiled_gxssslupr(x, alpha_p2_t, alpha_p3_t, alpha_n_t, beta_t)
 
 
 @jit_fuser
