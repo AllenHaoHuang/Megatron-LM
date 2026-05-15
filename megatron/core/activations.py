@@ -90,13 +90,13 @@ class GXSSSLUPR(MegatronModule):
 
 
 @jit_fuser
-def compiled_polynorm(x, alpha_p1, alpha_p2, alpha_p3, eps=1e-6):
+def compiled_polynorm(x, beta, alpha_p2, alpha_p3, eps=1e-6):
     def norm(x):
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
     norm_x = norm(x)
     norm_x2 = norm(torch.pow(x, 2))
     norm_x3 = norm(torch.pow(x, 3))
-    return alpha_p1 * norm_x + alpha_p2 * norm_x2 + alpha_p3 * norm_x3
+    return beta * norm_x + alpha_p2 * norm_x2 + alpha_p3 * norm_x3
 
 
 class PolyNorm(MegatronModule):
@@ -104,20 +104,20 @@ class PolyNorm(MegatronModule):
         super().__init__(config=config)
         self.num_local_experts = num_local_experts
         # Create vectors of length num_local_experts
-        self.alpha_p1 = nn.Parameter(torch.full((num_local_experts,), 0.33))
+        self.beta = nn.Parameter(torch.full((num_local_experts,), 0.33))
         self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.33))
         self.alpha_p3 = nn.Parameter(torch.full((num_local_experts,), 0.33))
         self.eps = eps
 
     def forward(self, x, tokens_per_expert=None):
         # Ensure parameters are positive (optional, as in reference)
-        alpha_p1 = torch.abs(self.alpha_p1)   # (num_local_experts,)
+        beta = torch.abs(self.beta)   # (num_local_experts,)
         alpha_p2 = torch.abs(self.alpha_p2)
         alpha_p3 = torch.abs(self.alpha_p3)
 
         if tokens_per_expert is None or self.num_local_experts == 1:
             # Broadcast scalar or (1,) to all tokens
-            alpha_p1_t = alpha_p1
+            beta_t = beta
             alpha_p2_t = alpha_p2
             alpha_p3_t = alpha_p3
         else:
@@ -125,11 +125,11 @@ class PolyNorm(MegatronModule):
             if isinstance(tokens_per_expert, torch.Tensor):
                 tokens_per_expert = tokens_per_expert.tolist()
             tpe_tensor = torch.tensor(tokens_per_expert, device=x.device)
-            alpha_p1_t = torch.repeat_interleave(alpha_p1, tpe_tensor).unsqueeze(-1)
+            beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
             alpha_p2_t = torch.repeat_interleave(alpha_p2, tpe_tensor).unsqueeze(-1)
             alpha_p3_t = torch.repeat_interleave(alpha_p3, tpe_tensor).unsqueeze(-1)
 
-        return compiled_polynorm(x, alpha_p1_t, alpha_p2_t, alpha_p3_t, self.eps)
+        return compiled_polynorm(x, beta_t, alpha_p2_t, alpha_p3_t, self.eps)
 
 
 @jit_fuser
