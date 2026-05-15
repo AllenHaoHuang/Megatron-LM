@@ -130,53 +130,119 @@ class PolyNorm(MegatronModule):
             alpha_p3_t = torch.repeat_interleave(alpha_p3, tpe_tensor).unsqueeze(-1)
 
         return compiled_polynorm(x, alpha_p1_t, alpha_p2_t, alpha_p3_t, self.eps)
-    
+
+
+# @jit_fuser
+# def compiled_piecewise_polynorm(x, alpha_p2, alpha_p3, alpha_n2, beta, eps=1e-6):
+#     def norm(x):
+#         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
+#     norm_x = norm(x)
+#     norm_x2 = norm(torch.pow(x, 2))
+#     norm_x3 = norm(torch.pow(x, 3))
+#     return beta * norm_x + alpha_p2 * norm_x2 * (x > 0) + alpha_n2 * norm_x2 * (x < 0) + alpha_p3 * norm_x3 * (x > 0)
+#
+#
+# class PiecewisePolyNorm(MegatronModule):
+#     def __init__(self, num_local_experts: int = 1, config=None, eps=1e-6):
+#         super().__init__(config=config)
+#         self.num_local_experts = num_local_experts
+#         # Create vectors of length num_local_experts
+#         self.beta = nn.Parameter(torch.full((num_local_experts,), 0.33))
+#         self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.33))
+#         self.alpha_p3 = nn.Parameter(torch.full((num_local_experts,), 0.33))
+#         self.alpha_n2 = nn.Parameter(torch.full((num_local_experts,), 0.33))
+#         self.eps = eps
+#
+#     def forward(self, x, tokens_per_expert=None):
+#         # Ensure parameters are positive
+#         beta = torch.abs(self.beta)   # (num_local_experts,)
+#         alpha_p2 = torch.abs(self.alpha_p2)
+#         alpha_p3 = torch.abs(self.alpha_p3)
+#         alpha_n2 = torch.abs(self.alpha_n2)
+#
+#         if tokens_per_expert is None or self.num_local_experts == 1:
+#             # Broadcast scalar or (1,) to all tokens
+#             beta_t = beta
+#             alpha_p2_t = alpha_p2
+#             alpha_p3_t = alpha_p3
+#             alpha_n2_t = alpha_n2
+#         else:
+#             # Expand to per‑token values
+#             if isinstance(tokens_per_expert, torch.Tensor):
+#                 tokens_per_expert = tokens_per_expert.tolist()
+#             tpe_tensor = torch.tensor(tokens_per_expert, device=x.device)
+#             beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
+#             alpha_p2_t = torch.repeat_interleave(alpha_p2, tpe_tensor).unsqueeze(-1)
+#             alpha_p3_t = torch.repeat_interleave(alpha_p3, tpe_tensor).unsqueeze(-1)
+#             alpha_n2_t = torch.repeat_interleave(alpha_n2, tpe_tensor).unsqueeze(-1)
+#
+#         return compiled_piecewise_polynorm(x, alpha_p2_t, alpha_p3_t, alpha_n2_t, beta_t, self.eps)
+
 
 @jit_fuser
-def compiled_piecewise_polynorm(x, alpha_p2, alpha_p3, alpha_n2, beta, eps=1e-6):
-    def norm(x):
-        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
-    norm_x = norm(x)
-    norm_x2 = norm(torch.pow(x, 2))
-    norm_x3 = norm(torch.pow(x, 3))
-    return beta * norm_x + alpha_p2 * norm_x2 * (x > 0) + alpha_n2 * norm_x2 * (x < 0) + alpha_p3 * norm_x3 * (x > 0)
+def compiled_piecewise_polynorm(x, beta, alpha_p2, alpha_p3, alpha_n2, gate_w, gate_b, eps=1e-6):
+    # Normalize x, x^2, x^3
+    norm_x = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps)
+    norm_x2 = (x ** 2) * torch.rsqrt((x ** 2).pow(2).mean(-1, keepdim=True) + eps)
+    norm_x3 = (x ** 3) * torch.rsqrt((x ** 3).pow(2).mean(-1, keepdim=True) + eps)
+
+    # Learned gate: use full hidden dimension
+    raw_gate = (x * gate_w).sum(dim=-1, keepdim=True) + gate_b
+    gate = torch.sigmoid(raw_gate)
+
+    pos_contrib = (alpha_p2 * norm_x2 + alpha_p3 * norm_x3) * gate
+    neg_contrib = alpha_n2 * norm_x2 * (1 - gate)
+
+    return beta * norm_x + pos_contrib + neg_contrib
 
 
 class PiecewisePolyNorm(MegatronModule):
     def __init__(self, num_local_experts: int = 1, config=None, eps=1e-6):
         super().__init__(config=config)
         self.num_local_experts = num_local_experts
-        # Create vectors of length num_local_experts
+        hidden_size = 960  # hardcoded as requested
+
         self.beta = nn.Parameter(torch.full((num_local_experts,), 0.5))
         self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.5))
         self.alpha_p3 = nn.Parameter(torch.full((num_local_experts,), 0.5))
         self.alpha_n2 = nn.Parameter(torch.full((num_local_experts,), 0.5))
+
+        # Gate parameters: weight vector per expert, bias scalar per expert
+        self.gate_w = nn.Parameter(torch.full((num_local_experts, hidden_size), 0.01))
+        self.gate_b = nn.Parameter(torch.full((num_local_experts,), 0.0))
+
         self.eps = eps
 
     def forward(self, x, tokens_per_expert=None):
-        # Ensure parameters are positive
-        beta = torch.abs(self.beta)   # (num_local_experts,)
+        # Abs for positivity (optional)
+        beta = torch.abs(self.beta)
         alpha_p2 = torch.abs(self.alpha_p2)
         alpha_p3 = torch.abs(self.alpha_p3)
         alpha_n2 = torch.abs(self.alpha_n2)
+        gate_w = self.gate_w
+        gate_b = self.gate_b
 
         if tokens_per_expert is None or self.num_local_experts == 1:
-            # Broadcast scalar or (1,) to all tokens
             beta_t = beta
             alpha_p2_t = alpha_p2
             alpha_p3_t = alpha_p3
             alpha_n2_t = alpha_n2
+            gate_w_t = gate_w
+            gate_b_t = gate_b
         else:
-            # Expand to per‑token values
-            if isinstance(tokens_per_expert, torch.Tensor):
-                tokens_per_expert = tokens_per_expert.tolist()
             tpe_tensor = torch.tensor(tokens_per_expert, device=x.device)
             beta_t = torch.repeat_interleave(beta, tpe_tensor).unsqueeze(-1)
             alpha_p2_t = torch.repeat_interleave(alpha_p2, tpe_tensor).unsqueeze(-1)
             alpha_p3_t = torch.repeat_interleave(alpha_p3, tpe_tensor).unsqueeze(-1)
             alpha_n2_t = torch.repeat_interleave(alpha_n2, tpe_tensor).unsqueeze(-1)
+            # gate_w: (num_experts, hidden) -> (total_tokens, hidden)
+            gate_w_t = torch.repeat_interleave(gate_w, tpe_tensor, dim=0)
+            # gate_b: (num_experts,) -> (total_tokens, 1)
+            gate_b_t = torch.repeat_interleave(gate_b, tpe_tensor).unsqueeze(-1)
 
-        return compiled_piecewise_polynorm(x, alpha_p2_t, alpha_p3_t, alpha_n2_t, beta_t, self.eps)
+        return compiled_piecewise_polynorm(
+            x, beta_t, alpha_p2_t, alpha_p3_t, alpha_n2_t, gate_w_t, gate_b_t, self.eps
+        )
 
 
 @jit_fuser
