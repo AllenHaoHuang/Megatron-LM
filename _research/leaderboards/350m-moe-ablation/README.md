@@ -28,3 +28,4 @@ Refer to [activations.py](../../../megatron/core/activations.py) for activation 
 - **`gxssslupr`**: better than swiglu here and follows similar scaling laws with swiglu as they are both glus. 
 but large mlp/amax will cause issues when scaling up
 - **`polynorm`**: better than swiglu
+- **`piecewise polynorm`**: better than polynorm, larger scale experiments show it pulls ahead more of polynorm
