@@ -26,7 +26,7 @@
 #   git checkout c664f35d2
 #   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-32e-tk3-sh1.sbatch
 #
-#SBATCH --job-name=350m-abl-polynorm-normuon-qkn-moe-32e-tk3-sh1
+#SBATCH --job-name=350m-abl-norm-gxssslupr-normuon-qkn-moe-32e-tk3-sh1
 #SBATCH --time=12:00:00
 #SBATCH --output=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
 #SBATCH --error=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
@@ -66,7 +66,7 @@ MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 MASTER_PORT=25678
 
 PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
-EXP_NAME=350m-abl-polynorm-normuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
+EXP_NAME=350m-abl-norm-gxssslupr-normuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
 export APERTUS_FEATURE=transformer-pp-normuon-moe-32e-tk3-sh1
@@ -86,7 +86,7 @@ MEGATRON_ARGS=(
     --main-grads-dtype fp32
     --num-layers 24
     --hidden-size 1024
-    --ffn-hidden-size 3840
+    --ffn-hidden-size 2560
     --num-attention-heads 16
     --group-query-attention
     --num-query-groups 4
@@ -95,7 +95,7 @@ MEGATRON_ARGS=(
     --rotary-base 500000
     --make-vocab-size-divisible-by 128
     --normalization RMSNorm
-    --polynorm
+    --gxssslupr
     --qk-layernorm
     --untie-embeddings-and-output-weights
     --attention-backend auto
@@ -103,8 +103,8 @@ MEGATRON_ARGS=(
     # MoE: 32 experts, top-4, expert FFN 640 (fine-grained, iso-active to dense)
     --num-experts 32
     --moe-router-topk 3
-    --moe-ffn-hidden-size 960
-    --moe-shared-expert-intermediate-size 960
+    --moe-ffn-hidden-size 640
+    --moe-shared-expert-intermediate-size 640
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 1e-2
     --moe-z-loss-coeff 1e-3

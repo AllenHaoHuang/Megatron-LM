@@ -2,19 +2,19 @@
 #
 # 350M-ablation leaderboard - rank 1 (new)
 # 350M-active MoE: 32 routed experts top-3 + 1 shared expert, all width 640
-# (DeepSeek-V3-style fine-grained, iso-active to dense aurora-qkn).
+# (DeepSeek-V3-style fine-grained, iso-active to dense normuon-qkn).
 # Active params ~355M (matches dense); total ~1.73B.
 #   Per-layer FFN active = (topk_routed + 1_shared) * 3 * hidden * 640
 #                        = 4 * 3 * 1024 * 640 = 7.86M  (matches dense)
 #   Per-layer FFN total  = (32 + 1) * 3 * 1024 * 640 = 64.9M
-# Optimizer: Aurora on 2D matrices (attention, embeds, output, router);
+# Optimizer: normuon on 2D matrices (attention, embeds, output, router);
 # expert weights are 3D under grouped-GEMM, so they fall through to AdamW.
-# Diff vs prior leader (09-aurora-qkn): replace dense FFN with
+# Diff vs prior leader (09-normuon-qkn): replace dense FFN with
 #   (32 routed * 640 + 1 shared * 640) MoE, topk=3 routed; plus aux + z
 #   losses (1e-2 / 1e-3); MBS 16 -> 8 for MoE activation headroom; SLURM
 #   time 1h -> 2.5h, exit-duration 55min -> 140min.
 # All other arch knobs (RMSNorm, SwiGLU, RoPE, GQA 16h/4kv, qk-layernorm,
-# WSD schedule, Aurora 1e-2, seed=42) stay identical.
+# WSD schedule, normuon 1e-2, seed=42) stay identical.
 # Final loss: 2.098   Min loss: 1.934
 # W&B: https://wandb.ai/ischlag/lm-research-baseline-dev/runs/5ttumu3u
 # Executed at git sha: c664f35d2
@@ -24,13 +24,13 @@
 #
 # To reproduce bitwise:
 #   git checkout c664f35d2
-#   sbatch _research/leaderboards/350m-ablation/runs/16-aurora-qkn-moe-32e-tk3-sh1.sbatch
+#   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-32e-tk3-sh1.sbatch
 #
-#SBATCH --job-name=350m-abl-piecewise-polynorm-aurora-qkn-moe-32e-tk3-sh1
-#SBATCH --time=02:30:00
+#SBATCH --job-name=350m-abl-piecewise-polynorm-normuon-qkn-moe-32e-tk3-sh1
+#SBATCH --time=12:00:00
 #SBATCH --output=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
 #SBATCH --error=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
-#SBATCH --nodes=1
+#SBATCH --nodes=4
 #SBATCH --ntasks-per-node=4
 #SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=72
@@ -66,10 +66,10 @@ MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 MASTER_PORT=25678
 
 PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
-EXP_NAME=350m-abl-piecewise-polynorm-aurora-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
+EXP_NAME=350m-abl-piecewise-polynorm-normuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
-export APERTUS_FEATURE=transformer-pp-aurora-moe-32e-tk3-sh1
+export APERTUS_FEATURE=transformer-pp-normuon-moe-32e-tk3-sh1
 export APERTUS_TRACK=350m-ablation-leaderboard
 export APERTUS_RUN_NAME=$EXP_NAME-$SLURM_JOB_ID
 export APERTUS_LOG_ACT_STATS=1
@@ -117,7 +117,7 @@ MEGATRON_ARGS=(
     # GEMM workspace double the per-microbatch activation footprint, so we halve.
     --micro-batch-size 8
     --global-batch-size 128
-    --train-samples 244141
+    --train-samples 3662115
     --exit-duration-in-mins 140
     --log-interval 1
     --eval-interval 244141
@@ -144,13 +144,13 @@ MEGATRON_ARGS=(
     --muon-scalar-lr 1.5e-3
     --muon-scalar-weight-decay 0.0
     --adaptive-muon-moment2-method normuon
-    # WSD schedule, 200-step warmup, last 20% decay (same as aurora-qkn)
+    # WSD schedule, 200-step warmup, last 20% decay (same as normuon-qkn)
     --lr 3.6e-4
     --min-lr 3.6e-5
     --lr-decay-style WSD
     --lr-warmup-samples 25600
     --lr-wsd-decay-style minus_sqrt
-    --lr-wsd-decay-samples 48828
+    --lr-wsd-decay-samples 732420
     # Init / precision
     --seed 42
     --init-method-std 0.02

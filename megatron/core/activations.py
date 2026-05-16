@@ -9,6 +9,9 @@ from megatron.core.transformer.module import MegatronModule
 
 @jit_fuser
 def compiled_xssslupr(x, alpha_p2, alpha_p3, alpha_n, beta):
+    def norm(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + 1e-6)
+    x = norm(x)
     return torch.where(x > 0,
                       alpha_p3 * x * x * x + alpha_p2 * x * x + beta * x,
                       alpha_n * x * torch.nn.functional.softsign(x) + beta * x)
@@ -52,6 +55,9 @@ class XSSSLUPR(MegatronModule):
 
 @jit_fuser
 def compiled_gxssslupr(x, alpha_p2, alpha_p3, alpha_n, beta):
+    def norm(x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + 1e-6)
+    x = norm(x)
     return torch.where(x > 0,
                       alpha_p3 * x * x + alpha_p2 * x + beta,
                       alpha_n * torch.nn.functional.softsign(x) + beta)
