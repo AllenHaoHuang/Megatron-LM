@@ -71,7 +71,7 @@ PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
 EXP_NAME=350m-abl-xssslupr-normuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
-export APERTUS_FEATURE=transformer-pp-normuon-moe-32e-tk3-sh1
+export APERTUS_FEATURE=transformer-pp-xssslupr-normuon-moe-32e-tk3-sh1
 export APERTUS_TRACK=350m-ablation-leaderboard
 export APERTUS_RUN_NAME=$EXP_NAME-$SLURM_JOB_ID
 export APERTUS_LOG_ACT_STATS=1
