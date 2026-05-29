@@ -153,10 +153,10 @@ class PiecewisePolyNorm(MegatronModule):
         super().__init__(config=config)
         self.num_local_experts = num_local_experts
         # Create vectors of length num_local_experts
-        self.beta = nn.Parameter(torch.full((num_local_experts,), 0.33))
-        self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.33))
-        self.alpha_p3 = nn.Parameter(torch.full((num_local_experts,), 0.33))
-        self.alpha_n2 = nn.Parameter(torch.full((num_local_experts,), 0.33))
+        self.beta = nn.Parameter(torch.full((num_local_experts,), 0.5))
+        self.alpha_p2 = nn.Parameter(torch.full((num_local_experts,), 0.5))
+        self.alpha_p3 = nn.Parameter(torch.full((num_local_experts,), 0.5))
+        self.alpha_n2 = nn.Parameter(torch.full((num_local_experts,), 0.5))
         self.eps = eps
 
     def forward(self, x, tokens_per_expert=None):

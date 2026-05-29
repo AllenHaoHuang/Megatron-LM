@@ -2,19 +2,19 @@
 #
 # 350M-ablation leaderboard - rank 1 (new)
 # 350M-active MoE: 32 routed experts top-3 + 1 shared expert, all width 640
-# (DeepSeek-V3-style fine-grained, iso-active to dense normuon-qkn).
+# (DeepSeek-V3-style fine-grained, iso-active to dense nurmuon-qkn).
 # Active params ~355M (matches dense); total ~1.73B.
 #   Per-layer FFN active = (topk_routed + 1_shared) * 3 * hidden * 640
 #                        = 4 * 3 * 1024 * 640 = 7.86M  (matches dense)
 #   Per-layer FFN total  = (32 + 1) * 3 * 1024 * 640 = 64.9M
-# Optimizer: normuon on 2D matrices (attention, embeds, output, router);
+# Optimizer: nurmuon on 2D matrices (attention, embeds, output, router);
 # expert weights are 3D under grouped-GEMM, so they fall through to AdamW.
-# Diff vs prior leader (09-normuon-qkn): replace dense FFN with
+# Diff vs prior leader (09-nurmuon-qkn): replace dense FFN with
 #   (32 routed * 640 + 1 shared * 640) MoE, topk=3 routed; plus aux + z
 #   losses (1e-2 / 1e-3); MBS 16 -> 8 for MoE activation headroom; SLURM
 #   time 1h -> 2.5h, exit-duration 55min -> 140min.
 # All other arch knobs (RMSNorm, SwiGLU, RoPE, GQA 16h/4kv, qk-layernorm,
-# WSD schedule, normuon 1e-2, seed=42) stay identical.
+# WSD schedule, nurmuon 1e-2, seed=42) stay identical.
 # Final loss: 2.098   Min loss: 1.934
 # W&B: https://wandb.ai/ischlag/lm-research-baseline-dev/runs/5ttumu3u
 # Executed at git sha: c664f35d2
@@ -24,9 +24,9 @@
 #
 # To reproduce bitwise:
 #   git checkout c664f35d2
-#   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-32e-tk3-sh1.sbatch
+#   sbatch _research/leaderboards/350m-ablation/runs/16-nurmuon-qkn-moe-32e-tk3-sh1.sbatch
 #
-#SBATCH --job-name=350m-abl-swiglu-normuon-qkn-moe-32e-tk3-sh1
+#SBATCH --job-name=350m-abl-squared-relu-nurmuon-qkn-moe-32e-tk3-sh1
 #SBATCH --time=12:00:00
 #SBATCH --output=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
 #SBATCH --error=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
@@ -36,7 +36,11 @@
 #SBATCH --cpus-per-task=72
 #SBATCH --mem=460000
 #SBATCH --no-requeue
+#SBATCH --account=infra01
+#SBATCH --reservation=SD-69241-apertus-1-5-0
 
+export WANDB_API_KEY=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
+export MEGATRON_DATA_PATH=/capstor/store/cscs/swissai/infra01/datasets/nvidia/Nemotron-ClimbMix/climbmix_small_megatron/climbmix_small
 set -euo pipefail
 : "${MEGATRON_DATA_PATH:?please set MEGATRON_DATA_PATH to the Megatron-binary dataset prefix (without .bin/.idx), e.g. /path/to/climbmix_small}"
 echo "START TIME: $(date)"
@@ -60,16 +64,14 @@ export TORCHINDUCTOR_USE_STATIC_CUDA_LAUNCHER=0
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export TMPDIR=$TMP_CACHE_DIR
 
-mkdir -p $DATASET_CACHE_DIR $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR $TMP_CACHE_DIR $PACKAGE_DIR _research/results/runs _research/results/performance
-
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 MASTER_PORT=25678
 
 PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
-EXP_NAME=350m-abl-swiglu-normuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
+EXP_NAME=350m-abl-squared-relu-nurmuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
-export APERTUS_FEATURE=transformer-pp-normuon-moe-32e-tk3-sh1
+export APERTUS_FEATURE=transformer-pp-nurmuon-moe-32e-tk3-sh1
 export APERTUS_TRACK=350m-ablation-leaderboard
 export APERTUS_RUN_NAME=$EXP_NAME-$SLURM_JOB_ID
 export APERTUS_LOG_ACT_STATS=1
@@ -80,13 +82,17 @@ export APERTUS_LOG_NEURON_INTERVAL=50
 export APERTUS_LOG_PER_LAYER_GRADS=1
 export APERTUS_LOG_LOSS_SPIKES=1
 
+mkdir -p $DATASET_CACHE_DIR $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR $TMP_CACHE_DIR $PACKAGE_DIR \
+         _research/results/runs _research/results/performance \
+         _research/results/checkpoints/$APERTUS_FEATURE
+
 MEGATRON_ARGS=(
     # Architecture: 350M-active Transformer++ MoE (24L, 1024H, 16h, 4kv GQA)
     --transformer-impl transformer_engine
     --main-grads-dtype fp32
     --num-layers 24
     --hidden-size 1024
-    --ffn-hidden-size 2560
+    --ffn-hidden-size 3840
     --num-attention-heads 16
     --group-query-attention
     --num-query-groups 4
@@ -95,7 +101,7 @@ MEGATRON_ARGS=(
     --rotary-base 500000
     --make-vocab-size-divisible-by 128
     --normalization RMSNorm
-    --swiglu
+    --squared-relu
     --qk-layernorm
     --untie-embeddings-and-output-weights
     --attention-backend auto
@@ -103,8 +109,8 @@ MEGATRON_ARGS=(
     # MoE: 32 experts, top-4, expert FFN 640 (fine-grained, iso-active to dense)
     --num-experts 32
     --moe-router-topk 3
-    --moe-ffn-hidden-size 640
-    --moe-shared-expert-intermediate-size 640
+    --moe-ffn-hidden-size 960
+    --moe-shared-expert-intermediate-size 960
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 1e-2
     --moe-z-loss-coeff 1e-3
@@ -144,7 +150,7 @@ MEGATRON_ARGS=(
     --muon-scalar-lr 1.5e-3
     --muon-scalar-weight-decay 0.0
     --adaptive-muon-moment2-method normuon
-    # WSD schedule, 200-step warmup, last 20% decay (same as normuon-qkn)
+    # WSD schedule, 200-step warmup, last 20% decay (same as nurmuon-qkn)
     --lr 3.6e-4
     --min-lr 3.6e-5
     --lr-decay-style WSD
@@ -157,8 +163,8 @@ MEGATRON_ARGS=(
     --bf16
     # FP8 (DeepSeek-V3 recipe, Hopper): E4M3 + blockwise scaling, matmuls
     # only. Params/master-weights stay bf16; no --fp8-param-gather.
-    --fp8-format e4m3
-    --fp8-recipe blockwise
+    # --fp8-format e4m3
+    # --fp8-recipe blockwise
     # Distributed: TP=1, PP=1, EP=1, DP=4. EP=1 still fits (32 experts
     # * 31.5M = 1GB/layer, 24L = ~24GB on a 96GB GH200; activations + grads
     # + optimizer state add ~30-40GB more, comfortably under 96). --overlap-param-gather
@@ -170,6 +176,12 @@ MEGATRON_ARGS=(
     --sequence-parallel
     --use-distributed-optimizer
     --overlap-grad-reduce
+    # Checkpointing
+    --save $WORKDIR/_research/results/checkpoints/$APERTUS_FEATURE
+    --load $WORKDIR/_research/results/checkpoints/$APERTUS_FEATURE
+    --save-interval 2000
+    --ckpt-format torch_dist
+    --async-save
     # Logging
     --log-throughput
     --log-progress

@@ -26,7 +26,7 @@
 #   git checkout c664f35d2
 #   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-32e-tk3-sh1.sbatch
 #
-#SBATCH --job-name=350m-abl-norm-gxssslupr-normuon-qkn-moe-32e-tk3-sh1
+#SBATCH --job-name=350m-abl-swiglu-normuon-qkn-moe-32e-tk3-sh1
 #SBATCH --time=12:00:00
 #SBATCH --output=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
 #SBATCH --error=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
@@ -36,7 +36,11 @@
 #SBATCH --cpus-per-task=72
 #SBATCH --mem=460000
 #SBATCH --no-requeue
+#SBATCH --account=infra01
+#SBATCH --reservation=SD-69241-apertus-1-5-0
 
+export WANDB_API_KEY=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
+export MEGATRON_DATA_PATH=/capstor/store/cscs/swissai/infra01/datasets/nvidia/Nemotron-ClimbMix/climbmix_small_megatron/climbmix_small
 set -euo pipefail
 : "${MEGATRON_DATA_PATH:?please set MEGATRON_DATA_PATH to the Megatron-binary dataset prefix (without .bin/.idx), e.g. /path/to/climbmix_small}"
 echo "START TIME: $(date)"
@@ -60,13 +64,11 @@ export TORCHINDUCTOR_USE_STATIC_CUDA_LAUNCHER=0
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export TMPDIR=$TMP_CACHE_DIR
 
-mkdir -p $DATASET_CACHE_DIR $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR $TMP_CACHE_DIR $PACKAGE_DIR _research/results/runs _research/results/performance
-
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 MASTER_PORT=25678
 
 PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
-EXP_NAME=350m-abl-norm-gxssslupr-normuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
+EXP_NAME=350m-abl-swiglu-normuon-qkn-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
 export APERTUS_FEATURE=transformer-pp-normuon-moe-32e-tk3-sh1
@@ -79,6 +81,10 @@ export APERTUS_LOG_NEURON_STATS=1
 export APERTUS_LOG_NEURON_INTERVAL=50
 export APERTUS_LOG_PER_LAYER_GRADS=1
 export APERTUS_LOG_LOSS_SPIKES=1
+
+mkdir -p $DATASET_CACHE_DIR $TRITON_CACHE_DIR $TORCHINDUCTOR_CACHE_DIR $TMP_CACHE_DIR $PACKAGE_DIR \
+         _research/results/runs _research/results/performance \
+         _research/results/checkpoints/$APERTUS_FEATURE
 
 MEGATRON_ARGS=(
     # Architecture: 350M-active Transformer++ MoE (24L, 1024H, 16h, 4kv GQA)
@@ -95,7 +101,7 @@ MEGATRON_ARGS=(
     --rotary-base 500000
     --make-vocab-size-divisible-by 128
     --normalization RMSNorm
-    --gxssslupr
+    --swiglu
     --qk-layernorm
     --untie-embeddings-and-output-weights
     --attention-backend auto
@@ -157,8 +163,8 @@ MEGATRON_ARGS=(
     --bf16
     # FP8 (DeepSeek-V3 recipe, Hopper): E4M3 + blockwise scaling, matmuls
     # only. Params/master-weights stay bf16; no --fp8-param-gather.
-    --fp8-format e4m3
-    --fp8-recipe blockwise
+    # --fp8-format e4m3
+    # --fp8-recipe blockwise
     # Distributed: TP=1, PP=1, EP=1, DP=4. EP=1 still fits (32 experts
     # * 31.5M = 1GB/layer, 24L = ~24GB on a 96GB GH200; activations + grads
     # + optimizer state add ~30-40GB more, comfortably under 96). --overlap-param-gather
@@ -170,6 +176,12 @@ MEGATRON_ARGS=(
     --sequence-parallel
     --use-distributed-optimizer
     --overlap-grad-reduce
+    # Checkpointing
+    --save $WORKDIR/_research/results/checkpoints/$APERTUS_FEATURE
+    --load $WORKDIR/_research/results/checkpoints/$APERTUS_FEATURE
+    --save-interval 2000
+    --ckpt-format torch_dist
+    --async-save
     # Logging
     --log-throughput
     --log-progress
