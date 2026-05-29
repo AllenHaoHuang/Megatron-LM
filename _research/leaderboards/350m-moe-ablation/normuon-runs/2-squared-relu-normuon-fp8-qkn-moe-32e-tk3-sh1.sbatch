@@ -124,7 +124,7 @@ MEGATRON_ARGS=(
     --micro-batch-size 8
     --global-batch-size 128
     --train-samples 3662115
-    --exit-duration-in-mins 140
+    --exit-duration-in-mins 720
     --log-interval 1
     --eval-interval 244141
     --eval-iters 0
