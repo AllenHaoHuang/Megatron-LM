@@ -180,8 +180,7 @@ MEGATRON_ARGS=(
     --save $WORKDIR/_research/results/checkpoints/$APERTUS_FEATURE
     --load $WORKDIR/_research/results/checkpoints/$APERTUS_FEATURE
     --save-interval 2000
-    --ckpt-format torch_dist
-    --async-save
+    --ckpt-format torch
     # Logging
     --log-throughput
     --log-progress
@@ -222,7 +221,7 @@ TRAINING_CMD="bash $WORKDIR/_research/launch/install_python_deps.sh $PACKAGE_DIR
 
 echo "CMD: $TRAINING_CMD"
 export APERTUS_PHASE_PRE_SRUN=$(date +%s.%N)
-srun -lu --mpi=pmix --network=disable_rdzv_get --environment=/capstor/store/cscs/swissai/infra01/containers/alps4dev.toml \
+srun -lu --mpi=pmix --network=disable_rdzv_get --environment=$WORKDIR/_research/launch/alps3.toml \
     --cpus-per-task $SLURM_CPUS_PER_TASK --wait 120 \
     bash -c "export APERTUS_PHASE_CONTAINER_STARTED=\$(date +%s.%N); $ENV_SETUP; $TRAINING_CMD"
 
