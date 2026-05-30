@@ -171,7 +171,7 @@ MEGATRON_ARGS=(
     # omitted (corrupts Newton-Schulz; same caveat as Muon).
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
-    --expert-model-parallel-size 2
+    --expert-model-parallel-size 4
     --context-parallel-size 1
     --sequence-parallel
     --use-distributed-optimizer
