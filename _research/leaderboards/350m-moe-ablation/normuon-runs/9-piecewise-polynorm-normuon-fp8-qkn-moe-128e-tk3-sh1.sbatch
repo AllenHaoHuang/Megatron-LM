@@ -24,13 +24,13 @@
 #
 # To reproduce bitwise:
 #   git checkout c664f35d2
-#   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-32e-tk3-sh1.sbatch
+#   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-128e-tk3-sh1.sbatch
 #
-#SBATCH --job-name=350m-abl-swiglu-normuon-qkn-sparse-moe-32e-tk3-sh1
+#SBATCH --job-name=350m-abl-piecewise-polynorm-normuon-qkn-sparse-moe-128e-tk3-sh1
 #SBATCH --time=12:00:00
 #SBATCH --output=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
 #SBATCH --error=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
-#SBATCH --nodes=4
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=4
 #SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=72
@@ -68,10 +68,10 @@ MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 MASTER_PORT=25678
 
 PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
-EXP_NAME=350m-abl-swiglu-normuon-qkn-sparse-moe-32e-tk3-sh1-$(git rev-parse --short HEAD)
+EXP_NAME=350m-abl-piecewise-polynorm-normuon-qkn-sparse-moe-128e-tk3-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
-export APERTUS_FEATURE=transformer-pp-swiglu-normuon-sparse-moe-32e-tk3-sh1
+export APERTUS_FEATURE=transformer-pp-piecewise-polynorm-normuon-sparse-moe-128e-tk3-sh1
 export APERTUS_TRACK=350m-ablation-leaderboard
 export APERTUS_RUN_NAME=$EXP_NAME-$SLURM_JOB_ID
 export APERTUS_LOG_ACT_STATS=1
@@ -92,7 +92,7 @@ MEGATRON_ARGS=(
     --main-grads-dtype fp32
     --num-layers 24
     --hidden-size 1024
-    --ffn-hidden-size 2560
+    --ffn-hidden-size 3840
     --num-attention-heads 16
     --group-query-attention
     --num-query-groups 4
@@ -101,16 +101,16 @@ MEGATRON_ARGS=(
     --rotary-base 500000
     --make-vocab-size-divisible-by 128
     --normalization RMSNorm
-    --swiglu
+    --piecewise-polynorm
     --qk-layernorm
     --untie-embeddings-and-output-weights
     --attention-backend auto
     --seq-length 4096
     # MoE: 32 experts, top-4, expert FFN 640 (fine-grained, iso-active to dense)
-    --num-experts 64
+    --num-experts 128
     --moe-router-topk 3
-    --moe-ffn-hidden-size 640
-    --moe-shared-expert-intermediate-size 640
+    --moe-ffn-hidden-size 960
+    --moe-shared-expert-intermediate-size 960
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 1e-2
     --moe-z-loss-coeff 1e-3
@@ -122,7 +122,7 @@ MEGATRON_ARGS=(
     # steps). Dense baseline runs at MBS=16; MoE permuted activations + grouped
     # GEMM workspace double the per-microbatch activation footprint, so we halve.
     --micro-batch-size 8
-    --global-batch-size 128
+    --global-batch-size 256
     --train-samples 3662115
     --exit-duration-in-mins 720
     --log-interval 1
@@ -171,7 +171,7 @@ MEGATRON_ARGS=(
     # omitted (corrupts Newton-Schulz; same caveat as Muon).
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
-    --expert-model-parallel-size 2
+    --expert-model-parallel-size 4
     --context-parallel-size 1
     --sequence-parallel
     --use-distributed-optimizer
