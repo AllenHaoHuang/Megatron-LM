@@ -108,7 +108,7 @@ MEGATRON_ARGS=(
     --seq-length 4096
     # MoE: 32 experts, top-4, expert FFN 640 (fine-grained, iso-active to dense)
     --num-experts 128
-    --moe-router-topk 8
+    --moe-router-topk 7
     --moe-ffn-hidden-size 640
     --moe-shared-expert-intermediate-size 640
     --moe-router-load-balancing-type aux_loss
