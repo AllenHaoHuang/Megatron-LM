@@ -107,8 +107,8 @@ MEGATRON_ARGS=(
     --attention-backend auto
     --seq-length 4096
     # MoE: 32 experts, top-4, expert FFN 640 (fine-grained, iso-active to dense)
-    --num-experts 128
-    --moe-router-topk 7
+    --num-experts 64
+    --moe-router-topk 3
     --moe-ffn-hidden-size 640
     --moe-shared-expert-intermediate-size 640
     --moe-router-load-balancing-type aux_loss
@@ -171,7 +171,7 @@ MEGATRON_ARGS=(
     # omitted (corrupts Newton-Schulz; same caveat as Muon).
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
-    --expert-model-parallel-size 4
+    --expert-model-parallel-size 2
     --context-parallel-size 1
     --sequence-parallel
     --use-distributed-optimizer
