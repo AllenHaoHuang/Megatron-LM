@@ -154,7 +154,7 @@ MEGATRON_ARGS=(
     --lr 3.6e-4
     --min-lr 3.6e-5
     --lr-decay-style WSD
-    --lr-warmup-samples 25600
+    --lr-warmup-samples 51200
     --lr-wsd-decay-style minus_sqrt
     --lr-wsd-decay-samples 732420
     # Init / precision

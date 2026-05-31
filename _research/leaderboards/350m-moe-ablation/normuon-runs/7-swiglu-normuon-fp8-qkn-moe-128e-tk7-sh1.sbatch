@@ -154,7 +154,7 @@ MEGATRON_ARGS=(
     --lr 3.6e-4
     --min-lr 3.6e-5
     --lr-decay-style WSD
-    --lr-warmup-samples 25600
+    --lr-warmup-samples 51200
     --lr-wsd-decay-style minus_sqrt
     --lr-wsd-decay-samples 732420
     # Init / precision
@@ -169,7 +169,7 @@ MEGATRON_ARGS=(
     # * 31.5M = 1GB/layer, 24L = ~24GB on a 96GB GH200; activations + grads
     # + optimizer state add ~30-40GB more, comfortably under 96). --overlap-param-gather
     # omitted (corrupts Newton-Schulz; same caveat as Muon).
-    --tensor-model-parallel-size 1
+    --tensor-model-parallel-size 2
     --pipeline-model-parallel-size 1
     --expert-model-parallel-size 4
     --context-parallel-size 1
