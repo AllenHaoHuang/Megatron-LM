@@ -24,9 +24,9 @@
 #
 # To reproduce bitwise:
 #   git checkout c664f35d2
-#   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-128e-tk3-sh1.sbatch
+#   sbatch _research/leaderboards/350m-ablation/runs/16-normuon-qkn-moe-128e-tk7-sh1.sbatch
 #
-#SBATCH --job-name=350m-abl-polynorm-normuon-qkn-sparse-moe-128e-tk3-sh1
+#SBATCH --job-name=350m-abl-piecewise-polynorm-normuon-qkn-sparse-moe-128e-tk7-sh1
 #SBATCH --time=12:00:00
 #SBATCH --output=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
 #SBATCH --error=/iopsstor/scratch/cscs/%u/megatron-lm-research-baseline/_research/results/runs/%x-%j.log
@@ -68,10 +68,10 @@ MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 MASTER_PORT=25678
 
 PROJECT=${WANDB_PROJECT:-megatron-lm-research-baseline}
-EXP_NAME=350m-abl-polynorm-normuon-qkn-sparse-moe-128e-tk3-sh1-$(git rev-parse --short HEAD)
+EXP_NAME=350m-abl-piecewise-polynorm-normuon-qkn-sparse-moe-128e-tk7-sh1-$(git rev-parse --short HEAD)
 
 export APERTUS_LOG_DIR=$WORKDIR/_research/results/performance
-export APERTUS_FEATURE=transformer-pp-polynorm-normuon-sparse-moe-128e-tk3-sh1
+export APERTUS_FEATURE=transformer-pp-piecewise-polynorm-normuon-sparse-moe-128e-tk7-sh1
 export APERTUS_TRACK=350m-ablation-leaderboard
 export APERTUS_RUN_NAME=$EXP_NAME-$SLURM_JOB_ID
 export APERTUS_LOG_ACT_STATS=1
@@ -101,14 +101,14 @@ MEGATRON_ARGS=(
     --rotary-base 500000
     --make-vocab-size-divisible-by 128
     --normalization RMSNorm
-    --polynorm
+    --piecewise-polynorm
     --qk-layernorm
     --untie-embeddings-and-output-weights
     --attention-backend auto
     --seq-length 4096
     # MoE: 32 experts, top-4, expert FFN 640 (fine-grained, iso-active to dense)
     --num-experts 128
-    --moe-router-topk 3
+    --moe-router-topk 7
     --moe-ffn-hidden-size 960
     --moe-shared-expert-intermediate-size 960
     --moe-router-load-balancing-type aux_loss
