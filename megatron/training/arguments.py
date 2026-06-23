@@ -3159,6 +3159,12 @@ def _add_moe_args(parser):
     return parser
 
 def _add_dex_args(parser):
+    # Idempotent: tolerate this builder running more than once on a parser (e.g. a duplicate
+    # registration or a repeated parse_args), which would otherwise raise an argparse conflict
+    # on the option strings below.
+    if getattr(parser, "_dex_args_added", False):
+        return parser
+    parser._dex_args_added = True
     group = parser.add_argument_group(title="dex")
     group.add_argument('--dex-enable', action='store_true',
                        help='Enable Differential Extension (DEX, arXiv:2505.16333): a learnable '
