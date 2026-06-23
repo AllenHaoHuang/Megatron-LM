@@ -155,6 +155,7 @@ def _get_transformer_layer_spec(use_te, config):
             config.multi_latent_attention,
             config.experimental_attention_variant,
             normalization=config.normalization,
+            seednorm=config.seednorm,
             use_kitchen=config.use_kitchen,
             use_kitchen_attention=config.use_kitchen_attention,
             kitchen_attention_backend=config.kitchen_attention_backend,

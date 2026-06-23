@@ -241,6 +241,20 @@ class TransformerConfig(ModelParallelConfig):
     normalization: Literal['LayerNorm', 'RMSNorm'] = "LayerNorm"
     """Which norm to use for normalization layers, valid options are `LayerNorm` and `RMSNorm`."""
 
+    seednorm: bool = False
+    """If True, replace ONLY the residual-stream pre-norms (the pre-attention and pre-MLP RMSNorm)
+    with SeeDNorm (Self-Rescaled Dynamic Normalization, https://arxiv.org/abs/2510.22777), a
+    dynamic RMSNorm variant. Every other norm -- the block's final norm, QK norm, and any sandwich
+    norm -- is left as `normalization` (RMSNorm). Requires `normalization='RMSNorm'` and the local
+    transformer implementation (`--transformer-impl local`), since SeeDNorm cannot be represented
+    by Transformer Engine fused norms."""
+
+    seednorm_num_heads: int = 1
+    """Number of seed heads for `SeeDNorm` (see `seednorm`). The normalized feature dim is split
+    into this many contiguous slices; each slice produces one scalar seed (a dot product with its
+    own `beta` slice) that, after `tanh`, modulates the corresponding slice of `alpha`. `1` is
+    vanilla single-head SeeDNorm. Must divide the normalized feature dim (e.g. hidden_size)."""
+
     sandwich_norm: bool = False
     """If True, apply an extra `normalization`-type norm to each sublayer's output before it is
     added back to the residual stream (a.k.a. sandwich norm / post-norm), so that each layer
@@ -1803,6 +1817,33 @@ class TransformerConfig(ModelParallelConfig):
             if self.normalization != "RMSNorm":
                 raise ValueError(
                     "fused_residual_rmsnorm is only supported when normalization is RMSNorm."
+                )
+
+        if self.seednorm:
+            # SeeDNorm replaces only the pre-attention / pre-MLP RMSNorm. It is a custom
+            # Megatron-Core module injected into the *local* prenorm slots, so it cannot run
+            # through Transformer Engine fused norms, and (being an RMSNorm variant) it requires
+            # an RMSNorm base. The final / QK / sandwich norms are unaffected.
+            if self.normalization != "RMSNorm":
+                raise ValueError(
+                    "seednorm=True replaces the pre-norm RMSNorm and requires "
+                    f"normalization='RMSNorm' (got {self.normalization!r})."
+                )
+            transformer_impl = getattr(self, "transformer_impl", "local")
+            if transformer_impl not in ("local", None):
+                raise ValueError(
+                    "seednorm=True requires --transformer-impl local; SeeDNorm cannot be "
+                    f"represented by Transformer Engine fused norms (got {transformer_impl!r})."
+                )
+            if self.seednorm_num_heads < 1 or self.hidden_size % self.seednorm_num_heads != 0:
+                raise ValueError(
+                    f"seednorm_num_heads ({self.seednorm_num_heads}) must be >= 1 and divide "
+                    f"hidden_size ({self.hidden_size})."
+                )
+            if self.fused_residual_rmsnorm:
+                raise ValueError(
+                    "seednorm=True is incompatible with fused_residual_rmsnorm (the residual "
+                    "fusion assumes a plain RMSNorm pre-norm)."
                 )
 
         if self.use_te_activation_func:

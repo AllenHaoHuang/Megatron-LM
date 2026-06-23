@@ -27,7 +27,7 @@ from megatron.core.transformer.multi_token_prediction import (
 )
 from megatron.core.transformer.pipeline_parallel_layer_layout import PipelineParallelLayerLayout
 from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.torch_norm import L2Norm
+from megatron.core.transformer.torch_norm import L2Norm, SeeDNorm
 from megatron.core.transformer.transformer_block import (
     TransformerBlockSubmodules,
     get_num_layers_to_build,
@@ -381,6 +381,7 @@ def get_gpt_layer_local_submodules(
     multi_latent_attention: Optional[bool] = False,
     fp8: Optional[str] = None,  # pylint: disable=unused-argument
     normalization: Optional[str] = None,
+    seednorm: bool = False,
     qk_l2_norm: Optional[bool] = False,
     use_kitchen: bool = False,
     use_kitchen_attention: bool = False,
@@ -420,6 +421,14 @@ def get_gpt_layer_local_submodules(
     else:
         layer_norm = backend.layer_norm(rms_norm=False, for_qk=False, has_residual=True)
         qk_norm = backend.layer_norm(rms_norm=False, for_qk=True)
+
+    # SeeDNorm (https://arxiv.org/abs/2510.22777) replaces ONLY the residual-stream pre-norms
+    # (input_layernorm + pre_mlp_layernorm, below). The QK norm, sandwich norm and the block's
+    # final norm keep `normalization` (RMSNorm). SeeDNorm is its own norm builder -- it reads
+    # seednorm_num_heads / sequence_parallel from config at build time -- so assign the class
+    # directly to the pre-norm slots.
+    if seednorm:
+        layer_norm = SeeDNorm
 
     if fp8 is not None:
         warnings.warn(
@@ -655,6 +664,7 @@ def get_gpt_decoder_layer_specs(
             qk_layernorm=config.qk_layernorm,
             multi_latent_attention=config.multi_latent_attention,
             normalization=normalization,
+            seednorm=config.seednorm,
             qk_l2_norm=qk_l2_norm,
             use_kitchen=config.use_kitchen,
             use_kitchen_attention=config.use_kitchen_attention,
@@ -668,6 +678,7 @@ def get_gpt_decoder_layer_specs(
             multi_latent_attention=config.multi_latent_attention,
             moe_use_offloading_experts=config.moe_use_offloading_experts,
             normalization=normalization,
+            seednorm=config.seednorm,
             qk_l2_norm=qk_l2_norm,
             use_kitchen=config.use_kitchen,
             use_kitchen_attention=config.use_kitchen_attention,
