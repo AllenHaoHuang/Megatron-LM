@@ -3159,27 +3159,33 @@ def _add_moe_args(parser):
     return parser
 
 def _add_dex_args(parser):
-    # Idempotent: tolerate this builder running more than once on a parser (e.g. a duplicate
-    # registration or a repeated parse_args), which would otherwise raise an argparse conflict
-    # on the option strings below.
-    if getattr(parser, "_dex_args_added", False):
-        return parser
-    parser._dex_args_added = True
     group = parser.add_argument_group(title="dex")
-    group.add_argument('--dex-enable', action='store_true',
-                       help='Enable Differential Extension (DEX, arXiv:2505.16333): a learnable '
-                       'differential adaptation O\' = O - lambda(t) * 1(h in H) * (O W_D) applied '
-                       'per head to the attention output (supports MHA / GQA / MLA).')
-    group.add_argument('--dex-anneal-steps', type=int, default=0,
-                       help='Annealing duration T (training steps) for the DEX lambda schedule '
-                       '(Eq. 4). Must be > 0 to bootstrap DEX off the zero stationary point; '
-                       '0 disables annealing.')
-    group.add_argument('--dex-head-selection', type=str, default='all',
-                       choices=['all', 'half'],
-                       help="Which heads receive DEX adaptation per layer: 'all', or 'half' "
-                       "(static placeholder for the paper's calibration-based selection).")
-    group.add_argument('--dex-lambda-learn-init', type=float, default=0.0,
-                       help='Initial value of the learnable differential scalar lambda_learn.')
+    # Add each option defensively: if it is already registered on this parser (e.g. a duplicate
+    # `_add_dex_args` registration, or a separate dex registration in another arg group), skip it
+    # instead of raising an argparse "conflicting option string" error.
+    dex_arguments = (
+        (('--dex-enable',), dict(
+            action='store_true',
+            help='Enable Differential Extension (DEX, arXiv:2505.16333): a learnable differential '
+            "adaptation O' = O - lambda(t) * 1(h in H) * (O W_D) applied per head to the attention "
+            'output (supports MHA / GQA / MLA).')),
+        (('--dex-anneal-steps',), dict(
+            type=int, default=0,
+            help='Annealing duration T (training steps) for the DEX lambda schedule (Eq. 4). Must '
+            'be > 0 to bootstrap DEX off the zero stationary point; 0 disables annealing.')),
+        (('--dex-head-selection',), dict(
+            type=str, default='all', choices=['all', 'half'],
+            help="Which heads receive DEX adaptation per layer: 'all', or 'half' (static "
+            "placeholder for the paper's calibration-based selection).")),
+        (('--dex-lambda-learn-init',), dict(
+            type=float, default=0.0,
+            help='Initial value of the learnable differential scalar lambda_learn.')),
+    )
+    for flags, kwargs in dex_arguments:
+        try:
+            group.add_argument(*flags, **kwargs)
+        except argparse.ArgumentError:
+            pass  # option already registered elsewhere; leave the existing one in place
 
     return parser
 
