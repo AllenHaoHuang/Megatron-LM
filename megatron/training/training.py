@@ -3044,6 +3044,10 @@ def train(
             continue
 
         args.curr_iteration = iteration
+        if args.dex_enable:
+            # Push the current step into DEX modules for the lambda annealing schedule (Eq. 4).
+            from megatron.core.transformer.dex import set_dex_iteration
+            set_dex_iteration(model, iteration)
         # For GRPO, we keep the data for a few epochs. DeepSeekMath paper calls this number $\mu$.
         # It is similar to a PPO epoch.
 

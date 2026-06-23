@@ -67,6 +67,7 @@ def add_megatron_arguments(parser: argparse.ArgumentParser):
     parser = _add_vision_args(parser)
     parser = _add_moe_args(parser)
     parser = _add_mla_args(parser)
+    parser = _add_dex_args(parser)
     parser = _add_experimental_attention_variant_args(parser)
     parser = _add_heterogeneous_args(parser)
     parser = _add_logging_args(parser)
@@ -3155,6 +3156,25 @@ def _add_moe_args(parser):
     group.add_argument('--moe-upcycling-granularity', type=int, default=1,
                        help='This param sepecifics how many times smaller is the expert hidden size compared with the original dense FFN hidden size. '
                        'For using granular upcycling strategy, please set this param as a positive integer. If this param is set to 1, it means using the default upcycling strategy.')
+    return parser
+
+def _add_dex_args(parser):
+    group = parser.add_argument_group(title="dex")
+    group.add_argument('--dex-enable', action='store_true',
+                       help='Enable Differential Extension (DEX, arXiv:2505.16333): a learnable '
+                       'differential adaptation O\' = O - lambda(t) * 1(h in H) * (O W_D) applied '
+                       'per head to the attention output (supports MHA / GQA / MLA).')
+    group.add_argument('--dex-anneal-steps', type=int, default=0,
+                       help='Annealing duration T (training steps) for the DEX lambda schedule '
+                       '(Eq. 4). Must be > 0 to bootstrap DEX off the zero stationary point; '
+                       '0 disables annealing.')
+    group.add_argument('--dex-head-selection', type=str, default='all',
+                       choices=['all', 'half'],
+                       help="Which heads receive DEX adaptation per layer: 'all', or 'half' "
+                       "(static placeholder for the paper's calibration-based selection).")
+    group.add_argument('--dex-lambda-learn-init', type=float, default=0.0,
+                       help='Initial value of the learnable differential scalar lambda_learn.')
+
     return parser
 
 def _add_mla_args(parser):

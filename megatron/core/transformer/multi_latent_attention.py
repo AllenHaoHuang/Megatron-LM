@@ -213,6 +213,10 @@ class MultiLatentAttention(Attention):
             # the quantized tensor.
             set_save_original_input(self.linear_proj)
 
+        # DEX acts on the per-head attention output; for MLA the value head dim is val_hidden_size
+        # (== v_head_dim, generally != kv_channels).
+        self._maybe_build_dex(self.val_hidden_size)
+
     def forward(
         self,
         hidden_states,
@@ -360,6 +364,11 @@ class MultiLatentAttention(Attention):
             assert self.qkv_up_checkpoint is not None
             self.qkv_up_checkpoint.discard_output_and_register_recompute(core_attn_out)
             self.qkv_up_checkpoint = None
+
+        # Differential Extension (DEX): per-head differential adaptation of the attention output
+        # O' = O - lambda(t) * 1(h in H) * (O W_D), before the output projection.
+        if self.dex is not None:
+            core_attn_out = self.dex(core_attn_out)
 
         # =================
         # Output. [sq, b, h]

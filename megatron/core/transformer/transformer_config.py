@@ -280,6 +280,27 @@ class TransformerConfig(ModelParallelConfig):
     multi_latent_attention: bool = False
     """Whether to use multi-latent attention."""
 
+    ####################
+    # DEX (Differential Extension) -- arXiv:2505.16333
+    ####################
+    dex_enable: bool = False
+    """Enable Differential Extension (DEX): a learnable differential adaptation
+    O' = O - lambda(t) * 1(h in H) * (O W_D) applied per head to the attention output, before the
+    output projection. Reuses the existing softmax attention scores. Supports MHA / GQA / MLA."""
+
+    dex_anneal_steps: int = 0
+    """Annealing duration T (in training steps) for the DEX lambda schedule (Eq. 4):
+    lambda(t) = (1 - a) * (t/T) * lambda_init + a * lambda_learn, a = min(1, t/T). Must be > 0 to
+    bootstrap DEX off the (W_D=0, lambda=0) stationary point; 0 disables annealing."""
+
+    dex_head_selection: str = 'all'
+    """Which heads receive DEX adaptation in each layer: 'all', or 'half' (a static placeholder
+    selecting the second half of heads; the paper's data-driven high-entropy / low-importance
+    selection requires offline calibration of a pretrained model)."""
+
+    dex_lambda_learn_init: float = 0.0
+    """Initial value of the learnable differential scalar lambda_learn (paper: near zero)."""
+
     no_rope_freq: Optional[Union[int, List[int]]] = None
     """Controls which layers perform Rotary Position Embedding (RoPE). Accepts either:
     An integer N: Creates a pattern where RoPE is skipped every N-1 layers. For example,
@@ -1134,6 +1155,14 @@ class TransformerConfig(ModelParallelConfig):
 
         if self.num_query_groups is None:
             self.num_query_groups = self.num_attention_heads
+
+        if self.dex_enable:
+            if self.dex_head_selection not in ('all', 'half'):
+                raise ValueError(
+                    f"dex_head_selection must be 'all' or 'half', got {self.dex_head_selection!r}."
+                )
+            if self.dex_anneal_steps < 0:
+                raise ValueError(f"dex_anneal_steps must be >= 0, got {self.dex_anneal_steps}.")
 
         if (
             self.num_query_groups % self.tensor_model_parallel_size != 0

@@ -378,6 +378,39 @@ class Attention(MegatronModule, ABC):
             # the quantized tensor.
             set_save_original_input(self.linear_proj)
 
+        # Differential Extension (DEX, arXiv:2505.16333): optional per-head differential adaptation
+        # of the attention output, applied before linear_proj. Built by concrete self-attention
+        # subclasses via _maybe_build_dex() with their value head dim. Cross-attention leaves None.
+        self.dex = None
+
+    def _maybe_build_dex(self, head_dim: int):
+        """Build the DEX module (if enabled) for the given per-head value dimension.
+
+        Concrete self-attention classes call this with ``self.val_hidden_size``
+        (== hidden_size_per_attention_head for standard attention, v_head_dim for MLA). Lazy
+        import avoids any module-load import cycle.
+        """
+        if not self.config.dex_enable:
+            return
+        if (
+            self.config.dex_head_selection == "half"
+            and self.config.num_query_groups < self.world_size
+        ):
+            raise NotImplementedError(
+                "dex_head_selection='half' is unsupported when num_query_groups < TP size "
+                "(non-contiguous head partition); use 'all'."
+            )
+        from megatron.core.transformer.dex import DEX
+
+        head_offset = get_pg_rank(self.tp_group) * self.num_attention_heads_per_partition
+        self.dex = DEX(
+            config=self.config,
+            layer_number=self.layer_number,
+            head_dim=head_dim,
+            num_heads_per_partition=self.num_attention_heads_per_partition,
+            head_offset=head_offset,
+        )
+
     def _checkpointed_attention_forward(
         self,
         query,
@@ -1046,6 +1079,8 @@ class Attention(MegatronModule, ABC):
             )
             out = output.transpose(0, 1).contiguous()
             context_layer = out.view(out.size(0), out.size(1), -1)
+            if self.dex is not None:
+                context_layer = self.dex(context_layer)
             output, bias = self.linear_proj(context_layer)
             return output, bias
 
@@ -1203,6 +1238,11 @@ class Attention(MegatronModule, ABC):
             core_attn_out = core_attn_out.reshape(core_attn_out.size(0), 1, -1)
         nvtx_range_pop(suffix="core_attention")
 
+        # Differential Extension (DEX): per-head differential adaptation of the attention output
+        # O' = O - lambda(t) * 1(h in H) * (O W_D), before the output gate and projection.
+        if self.dex is not None:
+            core_attn_out = self.dex(core_attn_out)
+
         # Output gate
         if gate is not None:
             nvtx_range_push(suffix="output_gate")
@@ -1305,6 +1345,10 @@ class SelfAttention(Attention):
             )
         else:
             self.k_layernorm = None
+
+        # DEX acts on the per-head attention output; for standard attention the value head dim
+        # is val_hidden_size (== hidden_size_per_attention_head).
+        self._maybe_build_dex(self.val_hidden_size)
 
     def run_realtime_tests(self):
         """Performs a consistency check.
