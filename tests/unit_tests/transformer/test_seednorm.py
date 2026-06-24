@@ -1,17 +1,22 @@
 # Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 """Tests for SeeDNorm (Self-Rescaled Dynamic Normalization, https://arxiv.org/abs/2510.22777).
 
-SeeDNorm is a pure-torch Megatron-Core norm, so these run on CPU (no GPU/TE/Triton needed). They
-cover the module math (init reduces exactly to RMSNorm, multi-head seed locality, dtype/grad
-behaviour), that `--seednorm` swaps SeeDNorm into ONLY the pre-attention / pre-MLP norm slots
-(leaving QK and the base norm as RMSNorm), and the config guards.
+SeeDNorm is a pure-torch Megatron-Core norm, so the module/spec checks run on CPU (no GPU/TE/Triton
+needed). They cover the module math (init reduces exactly to RMSNorm, multi-head seed locality,
+dtype/grad behaviour), that `--seednorm` swaps SeeDNorm into ONLY the pre-attention / pre-MLP norm
+slots (leaving QK / sandwich / base norm as RMSNorm) on BOTH the local and Transformer Engine
+backends, and the config guards. The TE spec check is skipped unless Transformer Engine is present.
 """
 import types
 
 import pytest
 import torch
 
-from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_local_submodules
+from megatron.core.extensions.transformer_engine import HAVE_TE
+from megatron.core.models.gpt.gpt_layer_specs import (
+    get_gpt_layer_local_submodules,
+    get_gpt_layer_with_transformer_engine_submodules,
+)
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.torch_norm import SeeDNorm
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -135,6 +140,26 @@ def test_seednorm_leaves_sandwich_norm_alone():
     assert sub.post_mlp_layernorm is not IdentityOp
 
 
+@pytest.mark.skipif(not HAVE_TE, reason="Transformer Engine required")
+def test_seednorm_te_unfuses_only_prenorm_slots():
+    """Under TE, --seednorm un-fuses ONLY the two prenorms: standalone SeeDNorm + plain TE linear,
+    with attention/QK left on TE."""
+    from megatron.core.extensions.transformer_engine import (
+        TEColumnParallelLinear,
+        TELayerNormColumnParallelLinear,
+    )
+
+    sub = get_gpt_layer_with_transformer_engine_submodules(seednorm=True, qk_layernorm=True)
+    assert sub.input_layernorm is SeeDNorm
+    assert sub.pre_mlp_layernorm is SeeDNorm
+    # linear_qkv is un-fused: the plain TE column-parallel linear, not the LayerNorm-fused one.
+    linear_qkv = sub.self_attention.submodules.linear_qkv
+    assert linear_qkv is TEColumnParallelLinear
+    assert linear_qkv is not TELayerNormColumnParallelLinear
+    # QK norm is untouched (TENorm, not SeeDNorm).
+    assert sub.self_attention.submodules.q_layernorm is not SeeDNorm
+
+
 # --- config guards --------------------------------------------------------------------------
 
 def _base_config(**overrides):
@@ -155,6 +180,11 @@ def test_config_accepts_seednorm_local_rmsnorm():
     assert cfg.seednorm and cfg.seednorm_num_heads == 2
 
 
+def test_config_accepts_seednorm_transformer_engine():
+    cfg = _base_config(transformer_impl="transformer_engine")
+    assert cfg.seednorm and cfg.transformer_impl == "transformer_engine"
+
+
 def test_config_allows_qk_layernorm_with_seednorm():
     # QK norm is out of scope for SeeDNorm but must not be *blocked* -- it just stays RMSNorm.
     assert _base_config(qk_layernorm=True).seednorm is True
@@ -164,7 +194,8 @@ def test_config_allows_qk_layernorm_with_seednorm():
     "overrides",
     [
         {"normalization": "LayerNorm"},  # SeeDNorm is an RMSNorm variant
-        {"transformer_impl": "transformer_engine"},  # TE cannot represent SeeDNorm
+        {"transformer_impl": "inference_optimized"},  # only local / transformer_engine
+        {"multi_latent_attention": True},  # MLA places its norms differently
         {"seednorm_num_heads": 5},  # must divide hidden_size (16)
         {"fused_residual_rmsnorm": True},  # residual fusion assumes plain RMSNorm
     ],

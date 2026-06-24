@@ -195,6 +195,7 @@ def get_gpt_layer_with_transformer_engine_submodules(
     kitchen_attention_backend: str = "sdpa",
     mla_down_proj_fusion: bool = False,
     sandwich_norm: bool = False,
+    seednorm: bool = False,
 ) -> TransformerLayerSubmodules:
     """Use these submodules to use lower-level Transformer Engine modules (required for fp8
     training).
@@ -246,6 +247,8 @@ def get_gpt_layer_with_transformer_engine_submodules(
         moe_use_offloading_experts=moe_use_offloading_experts,
         use_te_op_fuser=use_te_op_fuser,
         use_te_activation_func=use_te_activation_func,
+        # SeeDNorm needs a standalone pre-MLP norm, so keep the (dense) fc1 norm un-fused.
+        fuse_fc1_layernorm=not seednorm,
     )
 
     # Sandwich norm: a standalone norm on each sublayer output, before the residual add.
@@ -331,6 +334,37 @@ def get_gpt_layer_with_transformer_engine_submodules(
         )
     else:
         qk_norm = backend.layer_norm(for_qk=True)
+        if seednorm:
+            # SeeDNorm (https://arxiv.org/abs/2510.22777) for the pre-norm positions only. TE fuses
+            # the input norm into linear_qkv and (dense) the pre-MLP norm into fc1, which a custom
+            # norm can't do -- so un-fuse just those two: a standalone SeeDNorm + a plain TE
+            # column-parallel linear (which keeps fp8 / TP-comm overlap). Attention, the final norm,
+            # QK norm and sandwich norm all stay on TE / RMSNorm. The MLP fc1 was already built
+            # un-fused above via fuse_fc1_layernorm=not seednorm (dense); MoE experts never fuse it.
+            return TransformerLayerSubmodules(
+                input_layernorm=SeeDNorm,
+                self_attention=ModuleSpec(
+                    module=SelfAttention,
+                    params={"attn_mask_type": AttnMaskType.causal},
+                    submodules=SelfAttentionSubmodules(
+                        linear_qkv=backend.column_parallel_linear(),
+                        core_attention=backend.core_attention(),
+                        linear_proj=backend.row_parallel_linear(),
+                        q_layernorm=(
+                            L2Norm if qk_l2_norm else (qk_norm if qk_layernorm else IdentityOp)
+                        ),
+                        k_layernorm=(
+                            L2Norm if qk_l2_norm else (qk_norm if qk_layernorm else IdentityOp)
+                        ),
+                    ),
+                ),
+                self_attn_bda=get_bias_dropout_add,
+                post_self_attn_layernorm=post_layer_norm,
+                pre_mlp_layernorm=SeeDNorm,
+                mlp=mlp,
+                mlp_bda=get_bias_dropout_add,
+                post_mlp_layernorm=post_layer_norm,
+            )
         return TransformerLayerSubmodules(
             self_attention=ModuleSpec(
                 module=SelfAttention,
@@ -570,16 +604,26 @@ def get_mlp_module_spec_for_backend(
     moe_use_offloading_experts: Optional[bool] = False,
     use_te_op_fuser: Optional[bool] = False,
     use_te_activation_func: bool = False,
+    fuse_fc1_layernorm: bool = True,
 ) -> ModuleSpec:
-    """Helper function to get module spec for MLP/MoE"""
+    """Helper function to get module spec for MLP/MoE.
+
+    fuse_fc1_layernorm: if False, the dense fc1 keeps the pre-MLP norm OUT of the linear (a plain
+    column-parallel linear) so a standalone ``pre_mlp_layernorm`` (e.g. SeeDNorm) can be used
+    instead of the backend's fused LayerNorm-Linear. Ignored for MoE (experts never fuse the norm).
+    """
 
     linear_fc2 = backend.row_parallel_linear()
     activation_func = backend.activation_func() if use_te_activation_func else None
 
     if num_experts is None:
         # Dense MLP w/ or w/o TE modules.
+        if use_te_op_fuser and not fuse_fc1_layernorm:
+            raise AssertionError(
+                "use_te_op_fuser is incompatible with an un-fused fc1 layernorm (seednorm)."
+            )
         module = TEFusedMLP if use_te_op_fuser else MLP
-        if backend.fuse_layernorm_and_linear():
+        if fuse_fc1_layernorm and backend.fuse_layernorm_and_linear():
             linear_fc1 = backend.column_parallel_layer_norm_linear()
             assert linear_fc1 is not None
         else:
@@ -624,6 +668,7 @@ def get_gpt_decoder_layer_specs(
             kitchen_attention_backend=config.kitchen_attention_backend,
             mla_down_proj_fusion=getattr(config, "mla_down_proj_fusion", False),
             sandwich_norm=config.sandwich_norm,
+            seednorm=config.seednorm,
         )
         moe_layer_spec = get_gpt_layer_with_transformer_engine_spec(
             num_experts=config.num_moe_experts,
@@ -638,6 +683,7 @@ def get_gpt_decoder_layer_specs(
             kitchen_attention_backend=config.kitchen_attention_backend,
             mla_down_proj_fusion=getattr(config, "mla_down_proj_fusion", False),
             sandwich_norm=config.sandwich_norm,
+            seednorm=config.seednorm,
         )
     elif config.transformer_impl == "inference_optimized":
         layer_norm_impl = TENorm

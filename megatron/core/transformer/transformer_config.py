@@ -245,9 +245,11 @@ class TransformerConfig(ModelParallelConfig):
     """If True, replace ONLY the residual-stream pre-norms (the pre-attention and pre-MLP RMSNorm)
     with SeeDNorm (Self-Rescaled Dynamic Normalization, https://arxiv.org/abs/2510.22777), a
     dynamic RMSNorm variant. Every other norm -- the block's final norm, QK norm, and any sandwich
-    norm -- is left as `normalization` (RMSNorm). Requires `normalization='RMSNorm'` and the local
-    transformer implementation (`--transformer-impl local`), since SeeDNorm cannot be represented
-    by Transformer Engine fused norms."""
+    norm -- is left as `normalization` (RMSNorm). Requires `normalization='RMSNorm'`. Works with
+    both `--transformer-impl local` and `transformer_engine`; under TE the two prenorm positions are
+    un-fused from their adjacent linears (a small overhead) so SeeDNorm can sit there as a standalone
+    module while the rest of the layer keeps the TE fast paths (fp8 GEMMs, fused attention, TP-comm
+    overlap). Not supported with multi-latent attention."""
 
     seednorm_num_heads: int = 1
     """Number of seed heads for `SeeDNorm` (see `seednorm`). The normalized feature dim is split
@@ -1820,20 +1822,25 @@ class TransformerConfig(ModelParallelConfig):
                 )
 
         if self.seednorm:
-            # SeeDNorm replaces only the pre-attention / pre-MLP RMSNorm. It is a custom
-            # Megatron-Core module injected into the *local* prenorm slots, so it cannot run
-            # through Transformer Engine fused norms, and (being an RMSNorm variant) it requires
-            # an RMSNorm base. The final / QK / sandwich norms are unaffected.
+            # SeeDNorm replaces only the pre-attention / pre-MLP RMSNorm. It is an RMSNorm variant
+            # (base must be RMSNorm). It runs under both the local and TE implementations; under TE
+            # the two prenorms are un-fused from their linears. The final / QK / sandwich norms are
+            # unaffected.
             if self.normalization != "RMSNorm":
                 raise ValueError(
                     "seednorm=True replaces the pre-norm RMSNorm and requires "
                     f"normalization='RMSNorm' (got {self.normalization!r})."
                 )
             transformer_impl = getattr(self, "transformer_impl", "local")
-            if transformer_impl not in ("local", None):
+            if transformer_impl not in ("local", "transformer_engine", None):
                 raise ValueError(
-                    "seednorm=True requires --transformer-impl local; SeeDNorm cannot be "
-                    f"represented by Transformer Engine fused norms (got {transformer_impl!r})."
+                    "seednorm=True is supported with --transformer-impl local or "
+                    f"transformer_engine, not {transformer_impl!r}."
+                )
+            if self.multi_latent_attention:
+                raise ValueError(
+                    "seednorm=True is not supported with multi_latent_attention yet "
+                    "(MLA places its normalization layers differently)."
                 )
             if self.seednorm_num_heads < 1 or self.hidden_size % self.seednorm_num_heads != 0:
                 raise ValueError(

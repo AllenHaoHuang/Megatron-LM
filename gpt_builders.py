@@ -138,6 +138,7 @@ def _get_transformer_layer_spec(use_te, config):
             kitchen_attention_backend=config.kitchen_attention_backend,
             mla_down_proj_fusion=getattr(config, "mla_down_proj_fusion", False),
             sandwich_norm=config.sandwich_norm,
+            seednorm=config.seednorm,
         )
     elif config.transformer_impl == "inference_optimized":
         return get_gpt_layer_with_inference_spec(
